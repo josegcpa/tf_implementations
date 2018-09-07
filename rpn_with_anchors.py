@@ -82,8 +82,11 @@ class RPN():
         * input_width - the input_width of the images [1024]
         * input_height - the input_height of the images [1024]
         * batch_size - the size of each mini-batch [32]
-        * truth_only - a flag to exclude any images with no bounding boxes
-        [False]
+        * truth_only - a flag to exclude any images with no bounding boxes.
+        truth_only = True is the only supported mode since having images with
+        no bounding boxes will lead to a tensor of [n,n,0] dimensions. Apart
+        from this, it is not extremely useful to use images without bounding
+        boxes, so this is likely to stay this way [False]
         * mode - the mode for the algorithm. Can either be 'train', 'test' or
         'predict' ['train']
     # Network
@@ -690,15 +693,14 @@ class RPN():
             no_anchors = len(anchors)
             with tf.name_scope(name):
                 for a,b in anchors:
-                    anchor_list.append(
-                        anchor_to_mask(
-                            factor,
-                            curr_size,
-                            curr_size,
-                            a,b,
-                            curr_bb
+                    anchor_ten = anchor_to_mask(
+                        factor,
+                        curr_size,
+                        curr_size,
+                        a,b,
+                        curr_bb
                         )
-                    )
+                    anchor_list.append(anchor_ten)
 
                 if self.training_nms == True:
                     anchor_tensor = tf.stack(anchor_list,axis = 3)
@@ -781,6 +783,7 @@ class RPN():
                 key = key.strip()
                 if key in tmp_lines:
                     tmp[key] = self.image_path_dict[key]
+                    print(key)
             self.image_path_dict = tmp
             self.image_path_list = list(self.image_path_dict.values())
 
@@ -832,6 +835,12 @@ class RPN():
             anchor_sizes = self.anchor_sizes[level]
             level_size = self.level_sizes[level]
             no_anchors = self.no_anchors[level]
+            print(
+                factor,
+                anchor_sizes,
+                level_size,
+                no_anchors
+            )
             tmp = anchors_to_mask_nms(
                 factor = factor,
                 curr_size = level_size,
@@ -1092,7 +1101,7 @@ class RPN():
             true_iou = true[:,:,:,0,:]
             binarized_iou = binarize(true_iou)
             no_anchors = true_iou.get_shape().as_list()[-1]
-            true_anchor = t rue[:,:,:,1:5,:]
+            true_anchor = true[:,:,:,1:5,:]
             true_t = true[:,:,:,5:,:]
 
             true_mask = tf.cast(
@@ -1604,6 +1613,7 @@ class RPN():
             min_y = sparse_y - sparse_w/2.
             max_x = min_x + sparse_h
             max_y = min_y + sparse_w
+
             if fix == True:
                 """
                 Somewhere I am switching the b.b. coordinates, but I am still
