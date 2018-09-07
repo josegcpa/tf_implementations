@@ -25,7 +25,7 @@ import numpy as np
 import tensorflow as tf
 from PIL import Image
 from glob import glob
-from math import ceil
+from math import ceil,floor
 import mobilenet_v2
 from tensorflow.python.framework import ops
 from tensorflow.python.ops import math_ops
@@ -262,6 +262,7 @@ class RPN():
             #pass
             self.train()
         if mode =='test':
+            self.number_of_steps = floor(self.no_images / self.batch_size) + 1
             self.test()
 
     def make_dirs(self):
@@ -1311,7 +1312,7 @@ class RPN():
 
             #This allows training to continue
             if self.checkpoint_path != None:
-                self.saver.restore(self.sess,checkpoint_path)
+                self.saver.restore(self.sess,self.checkpoint_path)
             self.writer = tf.summary.FileWriter(self.save_summary_folder,
                                                 self.sess.graph)
             self.sess.run(self.init)
@@ -1426,8 +1427,8 @@ class RPN():
             for i in range(self.number_of_steps):
                 self.sess.run(tf.local_variables_initializer())
                 a = time.perf_counter()
-                n_images,_,b1,b2,b3 = self.sess.run(
-                    [self.no_images_batch,self.update_metrics,*self.box_vectors]
+                n_images,_ = self.sess.run(
+                    [self.no_images_batch,self.update_metrics]
                     )
                 total_images += n_images
                 b = time.perf_counter()
