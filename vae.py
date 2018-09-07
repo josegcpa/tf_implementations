@@ -39,7 +39,43 @@ class ToDirectory(argparse.Action):
         setattr(namespace, self.dest, os.path.abspath(values))
 
 class VAE:
+    """
+    Variational autoencoder (VAE) class. This class does all the "heavy
+    lifting" for the script. For now, only a fixed architecture was
+    considered, since it is for now mostly experimental.
 
+    Arguments [default]:
+    * mode - whether to use the VAE to train, test or predict ['train']
+    #Images
+    * image_path - path to the directory containing the images ['.']
+    * extension - extension for all images ['png']
+    * height - height for the input images
+    * width - width for the input images
+    #Preprocessing
+    * data_augmentation - whether data augmentation should be used [True]
+    * convert_hsv - whether the images should be converted to HSV [False]
+    #Training
+    * learning_rate - learning rate for the training [0.001]
+    * beta_l2_regularization - L2 regularization factor for the loss [None]
+    * number_of_steps - number of iterations [1000]
+    * epochs - number of training epochs (overrides number_of_steps) [None]
+    * save_checkpoint_folder - folder where the checkpoints should be
+    stored ['/tmp/checkpoint']
+    * save_checkpoint_steps - how often should checkpoints be saved [100]
+    * save_summary_folder - folder where the summary should be updated
+    ['/tmp/summary']
+    * save_summary_steps - how often should the summary be updated [100]
+    #Testing/Prediction
+    * checkpoint_path - path for the checkpoint to be restored [None]
+    * save_predictions_path - path where to save the predictions, namely
+    for the latent space representation ['./predictions.npy']
+    #General parameters
+    * config_arguments - arguments for the tf.ConfigProto that will act as
+    the config argument for the tf.Session [{}]
+    * log_every_n_steps - how often shold training log be produced [5]
+    * batch_size - number of images in each mini-batch [32]
+    """
+    
     def __init__(self,
                  mode = 'train',
                  #Images
@@ -66,43 +102,6 @@ class VAE:
                  config_arguments = {},
                  log_every_n_steps = 5,
                  batch_size = 32):
-
-        """
-        Variational autoencoder (VAE) class. This class does all the "heavy
-        lifting" for the script. For now, only a fixed architecture was
-        considered, since it is for now mostly experimental.
-
-        Arguments [default]:
-        * mode - whether to use the VAE to train, test or predict ['train']
-        #Images
-        * image_path - path to the directory containing the images ['.']
-        * extension - extension for all images ['png']
-        * height - height for the input images
-        * width - width for the input images
-        #Preprocessing
-        * data_augmentation - whether data augmentation should be used [True]
-        * convert_hsv - whether the images should be converted to HSV [False]
-        #Training
-        * learning_rate - learning rate for the training [0.001]
-        * beta_l2_regularization - L2 regularization factor for the loss [None]
-        * number_of_steps - number of iterations [1000]
-        * epochs - number of training epochs (overrides number_of_steps) [None]
-        * save_checkpoint_folder - folder where the checkpoints should be
-        stored ['/tmp/checkpoint']
-        * save_checkpoint_steps - how often should checkpoints be saved [100]
-        * save_summary_folder - folder where the summary should be updated
-        ['/tmp/summary']
-        * save_summary_steps - how often should the summary be updated [100]
-        #Testing/Prediction
-        * checkpoint_path - path for the checkpoint to be restored [None]
-        * save_predictions_path - path where to save the predictions, namely
-        for the latent space representation ['./predictions.npy']
-        #General parameters
-        * config_arguments - arguments for the tf.ConfigProto that will act as
-        the config argument for the tf.Session [{}]
-        * log_every_n_steps - how often shold training log be produced [5]
-        * batch_size - number of images in each mini-batch [32]
-        """
 
         self.mode = mode
         #Images

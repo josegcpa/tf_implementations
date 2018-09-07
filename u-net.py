@@ -45,7 +45,7 @@ import warnings
 import os
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 
-"""DEFINING FUNCTIONS"""
+#Defining functions
 
 class ToDirectory(argparse.Action):
     """
@@ -1360,7 +1360,7 @@ def main(log_file,
                                           len(image_path_list))
                 log_write_print(log_file,output)
 
-"""DEFINING ARGUMENTS"""
+#Defining arguments
 
 parser = argparse.ArgumentParser(
     prog = 'u-net.py',
