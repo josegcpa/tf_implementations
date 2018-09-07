@@ -11,4 +11,4 @@ Tensorflow (tf) implementations of:
     * MobileNetV2 backbone [[7](https://arxiv.org/abs/1801.04381)]
     
 This is not extremely organised for now;
-In the future input examples will be added to this repository to facilitate utilization.
+In the future input examples will be added to this repository to facilitate usage.
