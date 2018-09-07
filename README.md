@@ -1,4 +1,4 @@
-# Implementations of deep-learning networks in tensorflow
+# Implementations of deep learning networks for computer vision in tensorflow
 
 Tensorflow (tf) implementations of: 
 
@@ -12,3 +12,5 @@ Tensorflow (tf) implementations of:
     
 This is not extremely organised for now;
 In the future input examples will be added to this repository to facilitate usage.
+
+These have all been implemented and tested with tensorflow 1.6 for GPU installed from source with CUDA 8.0 and CuDNN 6.0 and a Quadro M6000 GPU.
