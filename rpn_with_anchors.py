@@ -1576,6 +1576,12 @@ class RPN():
             return tf.round(x * multiplier) / multiplier
 
         def decode_draw_box(image,box_vectors,nms,fix = False):
+            """
+            Somewhere I am switching the b.b. coordinates, but I am still
+            unaware of *where* exactly this happens. This is a temporary
+            solution for a hopefully temporary problem. Hence, the "fix"
+            argument.
+            """
             f = tf.cast(factor,tf.float32)
             shape = box_vectors.get_shape().as_list()
             c = box_vectors[:,:,0,:]
@@ -1588,6 +1594,10 @@ class RPN():
                     )
             else:
                 min = self.confidence_threshold
+            if fix == True:
+                general_fix = 1.
+            else:
+                general_fix = 0.
             min = tf.maximum(0.5,min)
             binary_c = tf.greater_equal(c,min)
 
@@ -1596,13 +1606,14 @@ class RPN():
                 [1,shape[1]]
                 )
             fix_x = tf.cast(fix_x,tf.float32)
-            fix_x = tf.stack([fix_x for i in range(4)],2)
+            fix_x = tf.stack([fix_x for i in range(4)],2) - general_fix
+
             fix_y = tf.tile(
                 tf.expand_dims(tf.range(shape[1]),0),
                 [shape[0],1]
                 )
             fix_y = tf.cast(fix_y,tf.float32)
-            fix_y = tf.stack([fix_y for i in range(4)],2)
+            fix_y = tf.stack([fix_y for i in range(4)],2) - general_fix
 
             idx = tf.where(tf.equal(binary_c,True))
             sparse_x = tf.gather_nd(box_vectors[:,:,1,:] + fix_x,idx) * f
@@ -1616,11 +1627,6 @@ class RPN():
             max_y = min_y + sparse_w
 
             if fix == True:
-                """
-                Somewhere I am switching the b.b. coordinates, but I am still
-                unaware of *where* exactly this happens. This is a temporary
-                solution for a hopefully temporary problem.
-                """
                 output = tf.truediv(
                     tf.stack([min_x,min_y,max_x,max_y],axis = 1),
                     shape[0] * f)
