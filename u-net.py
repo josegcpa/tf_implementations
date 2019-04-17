@@ -43,6 +43,8 @@ Help:
 import argparse
 import warnings
 import os
+from unet_utilities import *
+
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 #Defining functions
@@ -57,748 +59,8 @@ class ToDirectory(argparse.Action):
     def __call__(self, parser, namespace, values, option_string=None):
         setattr(namespace, self.dest, os.path.abspath(values))
 
-def u_net(inputs,
-          final_endpoint = 'Final',
-          padding = 'VALID',
-          factorization = False,
-          beta = 0,
-          residuals = False,
-          n_classes = 2,
-          resize = False,
-          resize_height = 256,
-          resize_width = 256,
-          depth_mult = 1):
-
-    """
-    Implementation of a standard U-net with some tweaks, namely:
-        * Possibility of choosing whether padding should be SAME or VALID (for
-        SAME it is necessary that the height % 16 == 0 and width % 16 == 0)
-        * Possibility of factorizing the convolutions (a 3x3 convolution
-        becomes a 1x3 and a 3x1 convolutions, turning the number of
-        operations/filter from 9 to 6)
-        * beta is the beta parameter in l2 regularization
-        * residuals activates residual blocks in the links
-
-    Arguments [default]:
-    * inputs - input tensor;
-    * final_endpoint - final layer to return ['Final']
-    * padding - whether VALID or SAME padding should be used ['VALID']
-    * factorization - whether convolutions should be factorized (3x3conv become
-    sequential 1x3 and 3x1 convolutions) [False]
-    * beta - L2 regularization factor [0]
-    * residuals - whether to use residual linkers in the shortcut links [False]
-    * n_classes - number of classes in the output layer (only works with 2) [2]
-    * resize - whether the input should be resized before training [False]
-    * resize_height - height of the resized input [256]
-    * resize_width - width of the resized input [256]
-    * depth_mult - factor to increase or decrease the depth in each layer
-    """
-
-    endpoints = {}
-
-    def conv2d(x,depth,size,stride,scope,
-               factorization = False,padding = padding):
-        if factorization == False:
-            scope = scope + str(size) + 'x' + str(size)
-            x = slim.conv2d(x,depth,[size,size],stride = stride,
-                            scope = scope,padding = padding)
-        else:
-            scope_1 = scope + str(size) + 'x' + '1'
-            scope_2 = scope + '1' + 'x' + str(size)
-            x = slim.conv2d(x,depth,[size,1],stride = 1,scope = scope_1,
-                            padding = padding)
-            x = slim.conv2d(x,depth,[1,size],stride = 1,scope = scope_2,
-                            padding = padding)
-            if stride > 1:
-                scope = scope + 'maxpool2d_' + str(stride) + 'x' + str(stride)
-                x = slim.max_pool2d(x, [stride,stride], stride = stride,
-                                    padding = 'SAME',scope = scope)
-
-        return x
-
-    def block(x,depth,size,stride,padding,factorization = False):
-        x = conv2d(x,depth,size,stride,'conv2d_1_',factorization)
-        x = conv2d(x,depth,size,stride,'conv2d_2_',factorization)
-        return x
-
-    def crop(concat_net,n):
-        n = int(n)
-        slice_size = concat_net.get_shape().as_list()
-        slice_size = [
-            - 1,
-            int(slice_size[1] - n * 2),
-            int(slice_size[2] - n * 2),
-            slice_size[3]
-        ]
-
-        concat_net = tf.slice(concat_net,
-                              [0,n,n,0],
-                              slice_size
-                              )
-        return concat_net
-
-    def residual_block(input_n,depth,size,factorization):
-        r = conv2d(input_n,depth,size,1,'res_conv2d_0_',
-                   factorization = factorization,padding = 'SAME')
-        r = conv2d(r,depth,size,1,'res_conv2d_1_',
-                   factorization = factorization,padding = 'SAME')
-        return tf.add(input_n,r)
-
-    if beta > 0:
-        weights_regularizer = tf.contrib.layers.l2_regularizer(beta)
-    else:
-        weights_regularizer = None
-
-    with slim.arg_scope(
-        [slim.conv2d],
-        weights_initializer = tf.contrib.layers.variance_scaling_initializer(),
-        activation_fn = tf.nn.relu6,
-        padding = padding,
-        weights_regularizer = weights_regularizer):
-
-        with tf.variable_scope('U-net', None, [inputs]):
-
-            if resize == True:
-                inputs = tf.image.resize_images(
-                    inputs,
-                    [resize_height,resize_width],
-                    method = tf.image.ResizeMethod.BILINEAR)
-
-            with tf.variable_scope('Red_Operations',None,[inputs]):
-                with tf.variable_scope('Red_Block_1',None):
-                    d_current = int(64 * depth_mult)
-                    net = block(inputs,d_current,3,1,factorization,[inputs])
-                    if residuals == True:
-                        endpoints['Red_Block_1'] = residual_block(
-                            net,d_current,3,factorization
-                        )
-                    else:
-                        endpoints['Red_Block_1'] = net
-                    if final_endpoint == 'Red_Block_1':
-                        return net,endpoints
-                    net = slim.max_pool2d(net,[2,2],stride = 2,
-                                            scope = 'maxpool2d_2x2')
-
-                with tf.variable_scope('Red_Block_B',None,[net]):
-                    d_current = int(128 * depth_mult)
-                    net = block(net,d_current,3,1,factorization)
-                    if residuals == True:
-                        endpoints['Red_Block_2'] = residual_block(
-                            net,d_current,3,factorization
-                        )
-                    else:
-                        endpoints['Red_Block_2'] = net
-                    if final_endpoint == 'Red_Block_2':
-                        return net,endpoints
-                    net = slim.max_pool2d(net,[2,2],stride = 2,
-                                            scope = 'maxpool2d_2x2')
-
-                with tf.variable_scope('Red_Block_3',None,[net]):
-                    d_current = int(256 * depth_mult)
-                    net = block(net,d_current,3,1,factorization)
-                    if residuals == True:
-                        endpoints['Red_Block_3'] = residual_block(
-                            net,d_current,3,factorization
-                        )
-                    else:
-                        endpoints['Red_Block_3'] = net
-                    if final_endpoint == 'Red_Block_3':
-                        return net,endpoints
-                    net = slim.max_pool2d(net,[2,2],stride = 2,
-                                            scope = 'maxpool2d_2x2')
-
-                with tf.variable_scope('Red_Block_4',None,[net]):
-                    d_current = int(512 * depth_mult)
-                    net = block(net,d_current,3,1,factorization)
-                    if residuals == True:
-                        endpoints['Red_Block_4'] = residual_block(
-                            net,d_current,3,factorization
-                        )
-                    else:
-                        endpoints['Red_Block_4'] = net
-                    if final_endpoint == 'Red_Block_4':
-                        return net,endpoints
-                    net = slim.max_pool2d(net,[2,2],stride = 2,
-                                            scope = 'maxpool2d_2x2')
-
-                with tf.variable_scope('Red_Block_5',None,[net]):
-                    d_current = int(1024 * depth_mult)
-                    net = block(net,d_current,3,1,factorization)
-                    endpoints['Red_Block_5'] = net
-                    if final_endpoint == 'Red_Block_5':
-                        return net,endpoints
-
-            with tf.variable_scope('Rec_Operations',None,[net]):
-                with tf.variable_scope('Rec_Block_1',None,[net]):
-                    d_current = int(512 * depth_mult)
-                    new_size = net.get_shape().as_list()
-                    new_size = [new_size[1] * 2,new_size[2] * 2]
-                    net = tf.image.resize_nearest_neighbor(net,new_size)
-                    net = slim.conv2d(net,d_current,[2,2],scope = 'conv2d_0_',
-                                        padding = 'SAME')
-                    if padding == 'VALID':
-                        n = endpoints['Red_Block_4'].get_shape().as_list()[1]
-                        n = (n - net.get_shape().as_list()[1])/2
-                        concat_net = crop(endpoints['Red_Block_4'],n)
-                    else:
-                        concat_net = endpoints['Red_Block_4']
-                    net = tf.concat([net,concat_net],
-                                      axis = 3)
-                    net = block(net,d_current,3,1,padding,factorization)
-                    endpoints['Rec_Block_1'] = net
-                    if final_endpoint == 'Rec_Block_1':
-                        return net,endpoints
-
-                with tf.variable_scope('Rec_Block_2',None,[net]):
-                    d_current = int(256 * depth_mult)
-                    new_size = net.get_shape().as_list()
-                    new_size = [new_size[1] * 2,new_size[2] * 2]
-                    net = tf.image.resize_nearest_neighbor(net,new_size)
-                    net = slim.conv2d(net,d_current,[2,2],
-                                        scope = 'conv2d_0_',
-                                        padding = 'SAME')
-                    if padding == 'VALID':
-                        n = endpoints['Red_Block_3'].get_shape().as_list()[1]
-                        n = (n - net.get_shape().as_list()[1])/2
-                        concat_net = crop(endpoints['Red_Block_3'],n)
-                    else:
-                        concat_net = endpoints['Red_Block_3']
-                    net = tf.concat([net,concat_net],
-                                      axis = 3)
-                    net = block(net,d_current,3,1,padding,factorization)
-                    endpoints['Rec_Block_2'] = net
-                    if final_endpoint == 'Rec_Block_2':
-                        return net,endpoints
-
-                with tf.variable_scope('Rec_Block_3',None,[net]):
-                    d_current = int(128 * depth_mult)
-                    new_size = net.get_shape().as_list()
-                    new_size = [new_size[1] * 2,new_size[2] * 2]
-                    net = tf.image.resize_nearest_neighbor(net,new_size)
-                    net = slim.conv2d(net,d_current,[2,2],
-                                        scope = 'conv2d_0_',
-                                        padding = 'SAME')
-                    if padding == 'VALID':
-                        n = endpoints['Red_Block_2'].get_shape().as_list()[1]
-                        n = (n - net.get_shape().as_list()[1])/2
-                        concat_net = crop(endpoints['Red_Block_2'],n)
-                    else:
-                        concat_net = endpoints['Red_Block_2']
-                    net = tf.concat([net,concat_net],
-                                      axis = 3)
-                    net = block(net,d_current,3,1,factorization)
-                    endpoints['Rec_Block_3'] = net
-                    if final_endpoint == 'Rec_Block_3':
-                        return net,endpoints
-
-                with tf.variable_scope('Rec_Block_4',None,[net]):
-                    d_current = int(64 * depth_mult)
-                    new_size = net.get_shape().as_list()
-                    new_size = [new_size[1] * 2,new_size[2] * 2]
-                    net = tf.image.resize_nearest_neighbor(net,new_size)
-                    net = slim.conv2d(net,d_current,[2,2],
-                                      scope = 'conv2d_0_',
-                                      padding = 'SAME')
-                    if padding == 'VALID':
-                        n = endpoints['Red_Block_1'].get_shape().as_list()[1]
-                        n = (n - net.get_shape().as_list()[1])/2
-                        concat_net = crop(endpoints['Red_Block_1'],n)
-                    else:
-                        concat_net = endpoints['Red_Block_1']
-                    net = tf.concat([net,concat_net],
-                                      axis = 3)
-                    net = block(net,d_current,3,1,padding,factorization)
-                    endpoints['Rec_Block_4'] = net
-                    if final_endpoint == 'Rec_Block_4':
-                        return net,endpoints
-
-                with tf.variable_scope('Final',None,[net]):
-                    net = slim.conv2d(net, n_classes, [1, 1],
-                                      normalizer_fn = None,
-                                      activation_fn = None,
-                                      scope='conv2d_0_sigmoid')
-                    endpoints['Final'] = net
-                    if final_endpoint == 'Final':
-                        return net,endpoints
-
-    return net,endpoints
-
-def image_to_array(image_path):
-    """Opens image in image_path and returns it as a numpy array.
-
-    Arguments:
-    * image_path - the path to an image
-    """
-
-    with Image.open(image_path) as o:
-        return np.array(o)
-
-def realtime_image_augmentation(image_path_list,truth_path,noise_chance = 0.05,
-                                blur_chance = 0.05,flip_chance = 0.5):
-    """A generator that performs a series of image manipulations to an original
-    image using salt, pepper, channel dropout, gaussian noise, blur, rotation
-    and flipping.
-    Additionally, it normalizes the input image through linear stretching and
-    standardization.
-
-    Arguments:
-    * image_path_list - a list of image paths
-    * truth_path - a list of ground truth images
-    * noise_chance - the probability of adding salt, pepper (to the image or a
-    single channel) or gaussian noise
-    * blur_chance - chance of applying median bluring to the input
-    * flip_chance - chance of rotating the input by n * 90 degrees and/or by
-    [0,89] degrees
-    """
-
-    def get_proportions():
-        true = np.random.sample() / 10
-        false = 1 - true
-        return true,false
-
-    def get_sp_mask(image):
-        true,false = get_proportions()
-        mask = np.random.choice(a = [0,1],size = image.shape[:2],
-                                p = [false,true])
-        mask = tuple([mask for i in range(image.shape[2])])
-        mask = np.stack(mask, axis = 2)
-
-        return mask
-
-    np.random.shuffle(image_path_list)
-
-    for image_path in image_path_list:
-        image_name = image_path.split('/')[-1]
-        truth_image_path = truth_path + '/' + image_name
-        image = image_to_array(image_path)
-        truth_image = image_to_array(truth_image_path)
-        im_shape = image.shape
-        if im_shape[0] == im_shape[1]:
-            if np.random.sample() <= blur_chance:
-                #Median blur
-                cv2.medianBlur(image,np.random.randint(2,4) * 2 - 1)
-            if np.random.sample() <= noise_chance:
-                #Salt
-                mask = get_sp_mask(image)
-                image[mask == 1] = 255
-            if np.random.sample() <= noise_chance:
-                #Pepper
-                mask = get_sp_mask(image)
-                image[mask == 1] = 0
-            if np.random.sample() <= noise_chance:
-                #Gaussian noise
-                mean = 0
-                var = 0.1
-                sigma = var**0.5
-                gauss = np.random.normal(mean,sigma,image.shape)
-                gauss = gauss.reshape(*image.shape)
-                image = image + gauss
-            for i in range(0,3):
-                if np.random.sample() <= noise_chance:
-                    #Channel dropout
-                    mask = get_sp_mask(image)[:,:,0]
-                    image[:,:,i][mask == 1] = 0
-                if np.random.sample() <= noise_chance:
-                    #Channel dropin
-                    mask = get_sp_mask(image)[:,:,0]
-                    image[:,:,i][mask == 1] = 255
-            if np.random.sample() <= flip_chance:
-                #Image flipping along one of the axis
-                flip = np.random.randint(0,2)
-                truth_image = np.flip(truth_image,flip)
-                image = np.flip(image,flip)
-            if np.random.sample() <= 2:
-                #Continuous image rotation (0,89)
-                rotation = np.random.sample() * 89
-                rot_tup = (im_shape[0]/2, im_shape[1]/2)
-                rotation_matrix = cv2.getRotationMatrix2D(rot_tup, rotation, 1)
-                image[image == 0] = -1
-                image = cv2.warpAffine(image, rotation_matrix,
-                                       (im_shape[0],im_shape[1]))
-                truth_image = cv2.warpAffine(truth_image, rotation_matrix,
-                                             (im_shape[0],im_shape[1]),
-                                             flags = cv2.INTER_NEAREST)
-                #noise the margins that were left blank from the rotation
-                noise = np.random.randint(0,256,
-                                          size = len(image[image == 0]))
-                image[image == 0] = noise
-                image[image == -1] = 0
-
-            if np.random.sample() <= flip_chance:
-                #Discrete image rotation (0,90,180,270)
-                rotation = np.random.randint(0,3)
-                truth_image = np.rot90(truth_image,rotation,(0,1))
-                image = np.rot90(image,rotation,(0,1))
-
-            yield image, truth_image
-
-def normal_image_generator(image_path_list,truth_path):
-    """
-    A standard image generator, to be used for testing purposes only. Goes over
-    a list of image paths and outputs an image and its corresponding segmented
-    image.
-
-    Arguments:
-    * image_path_list - a list of image paths
-    * truth_path - a list of ground truth images
-    """
-    for image_path in image_path_list:
-        image_name = image_path.split('/')[-1]
-        truth_image_path = truth_path + '/' + image_name
-        image = image_to_array(image_path)
-        truth_image = image_to_array(truth_image_path)
-        yield image,truth_image
-
-def single_image_generator(image_path_list):
-    """
-    Generates a single image at a time for prediction purposes.
-
-    Arguments:
-    * image_path_list - a list of image paths
-    """
-    for image_path in image_path_list:
-        image = image_to_array(image_path)
-        yield image,image_path
-
-def generate_tiles(large_image,
-                   input_height = 256,input_width = 256,
-                   padding = 'VALID'):
-    """Uses a large image to generate smaller tiles for prediction.
-
-    Arguments [default]:
-    * large_image - a numpy array containing a large image
-    * input_height - input height [256]
-    * input_width - input width [256]
-    * padding - whether VALID or SAME padding should be used ['VALID']
-    """
-
-    if padding == 'VALID':
-        extra = 92
-
-    stride_height = input_height - extra * 2
-    stride_width = input_width - extra * 2
-
-    stride_height,stride_width = input_height,input_width
-
-    height,width = large_image.shape[0:2]
-    h_tiles,w_tiles = floor(height/stride_height),floor(width/stride_width)
-    for i in range(h_tiles - 1):
-        h = i * stride_height
-        for j in range(w_tiles - 1):
-            w = j * stride_width
-            tile = large_image[h:h + input_height,w:w + input_width,:]
-            yield tile,h + extra,w + extra
-        w = (j + 1) * stride_width
-        if w + input_width > width:
-            w = width - input_width
-        tile = large_image[h:h + input_height,w:w + input_width,:]
-        yield tile,h + extra,w + extra
-    h = (i + 1) * stride_height
-    if h + input_height > height:
-        h = stride_height - input_height
-    for j in range(w_tiles - 1):
-        w = j * stride_width
-        tile = large_image[h:h + input_height,w:w + input_width,:]
-        yield tile,h + extra,w + extra
-    w = (j + 1) * stride_width
-    tile = large_image[h:h + input_height,w:w + input_width,:]
-    yield tile,h + extra,w + extra
-
-def remap_tiles(mask,division_mask,h_1,w_1,tile):
-    """
-    Function used to remap the tiles to the original image size. Currently, it
-    is working with one class prediction/"channel". The division mask will be
-    used in the end to divide the final_prediction and use a sort of a
-    "consensus" approach for overlapping regions.
-
-    * mask - mask with the same size of a large image
-    * division_mask - mask that sums the number of positive pixels in
-    overlapping regions
-    * h_1 - height for the tile insertion
-    * w_1 - width for the tile insertion
-    * tile - numpy array with the output from U-Net
-    """
-
-    x,y = tile.shape[0:2]
-    mask[h_1:h_1 + x,w_1:w_1 + y,:] += tile
-    division_mask[h_1:h_1 + x,w_1:w_1 + y,:] += np.ones(tile.shape)
-    return mask,division_mask
-
-def generate_images(image_path_list,truth_path,batch_size,crop,
-                    chances = [0,0,0],net_x = None,net_y = None,
-                    input_height = 256,input_width = 256,resize = False,
-                    resize_height = 256, resize_width = 256,
-                    padding = 'VALID',n_classes = 2,
-                    truth_only = False,
-                    testing = False,prediction = False,
-                    large_image_prediction = False):
-    """
-    Multi-purpose image generator.
-
-    Arguments [default]:
-    * image_path_list - a list of image paths
-    * truth_path - a list of ground truth image paths
-    * batch_size - the size of the batch
-    * crop - whether the ground truth image should be cropped or not
-    * chances - chances for the realtime_image_augmentation [[0,0,0]]
-    * net_x - output height for the network [None]
-    * net_y - output width for the network [None]
-    * input_height - input height for the network [256]
-    * input_width - input width for the network [256]
-    * resize - whether the input should be resized or not [False]
-    * resize_height - height of the resized input [256]
-    * resize_width - width of the resized input [256]
-    * padding - whether VALID or SAME padding should be used ['VALID']
-    * n_classes - no. of classes [2]
-    * truth_only - whether only positive images should be used [False]
-    * testing - whether the testing image generator should be used
-    (normal_image_generator) [False]
-    * prediction - whether the prediction image generator should be used
-    (single_image_generator) [False]
-    * large_image_prediction - whether the large prediction image generator
-    should be used (generate_tiles) [False]
-    """
-
-    a = True
-    batch = []
-
-    if testing == False and prediction == False and\
-     large_image_prediction == False:
-        truth_batch = []
-        generator = realtime_image_augmentation(image_path_list,
-                                                truth_path,
-                                                chances[0],
-                                                chances[1],
-                                                chances[2])
-
-    elif testing == True:
-        truth_batch = []
-        generator = normal_image_generator(image_path_list,
-                                           truth_path)
-    elif prediction == True:
-        generator = single_image_generator(image_path_list)
-
-    if prediction == False and large_image_prediction == False:
-        while a == True:
-            for img,truth_img in generator:
-                #Normalize data between 0 - 1
-                img = (img - np.min(img)) / (np.max(img) - np.min(img))
-                if len(batch) >= batch_size:
-                    batch = []
-                    truth_batch = []
-
-                if len(truth_img.shape) == 3:
-                    truth_img = np.mean(truth_img,axis = 2)
-
-
-                if resize == True:
-                    truth_img = cv2.resize(truth_img,
-                                           dsize = (resize_height,resize_width),
-                                           interpolation = cv2.INTER_NEAREST)
-
-                classes = np.unique(truth_img)
-
-                mask = np.zeros((truth_img.shape[0],
-                                 truth_img.shape[1],
-                                 n_classes))
-
-                for i in range(len(classes)):
-                    mask[:,:,i][truth_img == classes[i]] = 1
-
-                truth_img = mask
-                if net_x != None and net_y != None:
-                    x1,y1 = truth_img.shape[0:2]
-                    x2,y2 = (int((x1 - net_x)/2),int((y1 - net_y)/2))
-                    truth_img = truth_img[x2:x1 - x2,y2:y1 - y2,:]
-                batch.append(img)
-                truth_batch.append(truth_img)
-
-                if len(batch) >= batch_size:
-                    yield batch,truth_batch
-            if len(batch) > 0:
-                yield batch,truth_batch
-            if testing == True:
-                a = False
-
-    elif prediction == True:
-        batch_paths = []
-        for img,img_path in generator:
-            img = (img - np.min(img)) / (np.max(img) - np.min(img))
-            if len(batch) >= batch_size:
-                batch = []
-                batch_paths = []
-
-            batch.append(img)
-            batch_paths.append(img_path)
-
-            if len(batch) >= batch_size:
-                yield batch,batch_paths
-        if len(batch) > 0:
-            yield batch,batch_paths
-
-    elif large_image_prediction == True:
-        batch_paths = []
-        batch_coord = []
-        batch_shape = []
-        for large_image_path in image_path_list:
-            large_image = np.array(
-                Image.open(large_image_path)
-                )
-            generator = generate_tiles(
-                large_image,
-                input_height = input_height,
-                input_width = input_width,
-                padding = padding
-                )
-
-            for img,x,y in generator:
-                img = (img - np.min(img)) / (np.max(img) - np.min(img))
-                if len(batch) >= batch_size:
-                    batch = []
-                    batch_paths = []
-                    batch_coord = []
-                    batch_shape = []
-
-                shape = img.shape
-                batch.append(img)
-                batch_paths.append(large_image_path)
-                batch_coord.append((x,y))
-                batch_shape.append(large_image.shape[0:2])
-
-                if len(batch) >= batch_size:
-                    yield batch,batch_paths,batch_coord,batch_shape
-
-            if len(batch) > 0:
-                yield batch,batch_paths,batch_coord,batch_shape
-
-def iglovikov_loss(truth,network):
-    """
-    Loss function suggested by Iglovikov to include the Intersection of Union
-    metric, a non-differentiable segmentation metric, with softmax cross
-    entropy.
-
-    Arguments [default]:
-    * truth - tensor with ground truth
-    * network - tensor with the output from the U-Net
-    """
-
-    network_softmax = tf.nn.softmax(network,axis = -1)
-
-    j = tf.divide(
-        tf.multiply(truth,network_softmax),
-        tf.subtract(truth + network_softmax,tf.multiply(truth,network_softmax))
-        )
-
-    h = tf.losses.softmax_cross_entropy(truth,network)
-
-    loss = tf.subtract(h,tf.reduce_mean(j))
-
-    return loss
-
-def get_weight_map(truth_image,w0 = 10,sigma = 5):
-    """
-    Has to be one channel only.
-
-    Arguments [default]:
-    * truth_image - numpy array with ground truth image
-    * w0 - w0 value for the weight map [10]
-    * sigma - sigma value for the weight map [5]
-    """
-    if len(truth_image.shape) > 2:
-        truth_image = np.argmax(truth_image,axis = 2)
-    sh = truth_image.shape
-
-    truth_image[truth_image > 0] = 255
-    truth_image = cv2.erode(truth_image.astype('uint8'),np.ones((3,3)))
-
-    edges = cv2.Laplacian(truth_image,cv2.CV_64F)
-    cp, edges = cv2.connectedComponents(edges.astype('uint8'))
-
-    if cp > 1:
-
-        dists = np.zeros((sh[0],sh[1],cp),dtype = 'float32')
-        pixel_coords = np.where(truth_image == 0)
-        pixel_coords_t = np.transpose(pixel_coords)
-        weight_mask = np.zeros((sh[0],sh[1]),dtype = 'float32')
-        ratio = len(pixel_coords[0])/(sh[0] * sh[1])
-        weight_mask[pixel_coords] = 1 - ratio
-        weight_mask[~pixel_coords[0],~pixel_coords[1]] = ratio
-
-        for c in range(1,cp):
-            cp_coords = np.transpose(np.where(edges == c))
-            distances = distance.cdist(pixel_coords_t,cp_coords)
-            mins = np.min(distances,axis = 1)
-            temp_coords = (pixel_coords[0],
-                           pixel_coords[1],
-                           np.ones((len(pixel_coords[0]))).astype('uint') * c)
-            dists[temp_coords] = mins
-        dists = np.sort(dists,axis = 2,kind = 'mergesort')
-
-        #weight_map = (dists[:,:,1] + dists[:,:,2])**2/(2 * sigma**2)
-        weight_map = ((dists[:,:,1] * 2) ** 2)/(2 * sigma ** 2)
-
-        weight_map = w0 * np.exp(-weight_map)
-        weight_map[truth_image > 0] = 1
-        weight_map = weight_mask + weight_map
-
-    else:
-        weight_map = np.ones(truth_image.shape) * 0.5
-
-    weight_map = np.reshape(weight_map,(sh[0],sh[1],1))
-
-    return weight_map
-
-def safe_log(tensor):
-    """
-    Prevents log(0)
-
-    Arguments:
-    * tensor - tensor
-    """
-    return tf.log(tf.clip_by_value(tensor,1e-32,tf.reduce_max(tensor)))
-
-def variables(vs):
-    """
-    For logging purposes.
-
-    Arguments:
-    * vs - variables from tf.all_variables() or similar functions
-    """
-    return int(np.sum([np.prod(v.get_shape().as_list()) for v in vs]))
-
-def log_write_print(log_file,to_write):
-    """
-    Convenience funtion to write something in a log file and also print it.
-
-    Arguments:
-    * log_file - path to the file
-    * to_write - what should be written/printed
-    """
-    with open(log_file,'a') as o:
-        o.write(to_write + '\n')
-    print(to_write)
-
-def weighted_softmax_cross_entropy(prediction,truth,weights):
-    """
-    Function that calculates softmax cross-entropy and weighs it using a
-    pixel-wise map.
-
-    Arguments:
-    * prediction - output from the network
-    * truth - ground truth
-    * weights - weight map
-    """
-    prediction = tf.nn.softmax(prediction,axis = -1)
-    h = tf.add(
-        tf.multiply(truth,safe_log(prediction)),
-        tf.multiply(1 - truth,safe_log(1 - prediction))
-        )
-
-    weighted_cross_entropy = tf.reduce_mean(h * weights)
-
-    return weighted_cross_entropy
-
-def main(log_file,
+def main(mode,
+         log_file,
          log_every_n_steps,
          save_summary_steps,
          save_summary_folder,
@@ -815,11 +77,8 @@ def main(log_file,
          weighted,
          depth_mult,
          truth_only,
-         testing,
          checkpoint_path,
-         prediction,
          prediction_output,
-         large_image_prediction,
          large_prediction_output,
          convert_hsv,
          noise_chance,
@@ -829,12 +88,15 @@ def main(log_file,
          resize_height,
          resize_width,
          dataset_dir,
+         path_csv,
          truth_dir,
          padding,
          extension,
          input_height,
          input_width,
-         n_classes):
+         n_classes,
+         trial,
+         aux_node):
 
     """
     Wraper for the entire script.
@@ -858,13 +120,9 @@ def main(log_file,
     * weighted - whether weight maps should be calculated
     * depth_mult - a multiplier for the depth of the layers
     * truth_only - whether only positive images should be used
-    * testing - whether the network is going to be used for testing
-    * checkpoint_path - path to the checkpoint to be stored (for testing,
-    prediction and large_prediction)
-    * prediction - whether the network is going to be used for prediction
+    * mode - algorithm mode.
+    * checkpoint_path - path to the checkpoint to restore
     * prediction_output - where the predicted output should be stored
-    * large_image_prediction - whether the network is going to be used for
-    large image prediction
     * large_prediction_output - where the large image predictions should be
     stored
     * convert_hsv - whether the images should be converted to hsv color space
@@ -880,26 +138,58 @@ def main(log_file,
     * extension - extension for the images
     * input_height - height of the input image
     * input_width - width of the input image
-    * n_classes - no. of classes (currently only supports 2)
+    * n_classes - no. of classes (currently only supports 2/3)
     """
+
+    log_write_print(log_file,'INPUT ARGUMENTS:')
+    for var in vars(args):
+        log_write_print(log_file,'\t{0}={1}'.format(var,vars(args)[var]))
+    print('\n')
 
     print("Preparing the network...\n")
 
     inputs = tf.placeholder(tf.float32, [None,input_height,input_width,3])
+
+    if dataset_dir != None:
+        image_path_list = glob(dataset_dir + '/*' + extension)
+    if path_csv != None:
+        with open(path_csv) as o:
+            lines = o.readlines()
+        image_path_list = []
+        for line in lines[1:]:
+            tmp = line.strip().split(',')
+            if len(tmp) == 3:
+                if tmp[2] == '1':
+                    image_path_list.append(tmp[1])
+        image_path_list = list(set(image_path_list))
+
+    if trial:
+        image_path_list = image_path_list[:50]
+
+    if epochs != None:
+        number_of_steps = epochs * int(len(image_path_list)/batch_size)
+
     if convert_hsv == True:
         inputs = tf.image.rgb_to_hsv(inputs)
 
-    network, endpoints = u_net(inputs,
-                               final_endpoint = 'Final',
-                               padding = padding,
-                               factorization = factorization,
-                               residuals = residuals,
-                               beta = beta_l2_regularization,
-                               n_classes = n_classes,
-                               resize = resize,
-                               resize_height = resize_height,
-                               resize_width = resize_width,
-                               depth_mult = depth_mult)
+    if mode == 'train':
+        is_training = True
+    else:
+        is_training = False
+
+    network,endpoints,classifications = u_net(
+        inputs,
+        final_endpoint = None,
+        padding = padding,
+        factorization = factorization,
+        residuals = residuals,
+        beta = beta_l2_regularization,
+        n_classes = n_classes,
+        resize = resize,
+        resize_height = resize_height,
+        resize_width = resize_width,
+        depth_mult = depth_mult
+        )
     network = network + 1e-10
 
     log_write_print(log_file,
@@ -927,43 +217,128 @@ def main(log_file,
 
     saver = tf.train.Saver()
 
-    truth_max = tf.argmax(truth,axis = 3)
-    network_max = tf.argmax(network,axis = 3)
-    truth_binary = tf.clip_by_value(
-        tf.count_nonzero(truth_max,axis = [1,2],
-                         dtype = tf.float32),0,1
-        )
-    network_binary = tf.clip_by_value(
-        tf.count_nonzero(network_max,axis = [1,2],
-                         dtype = tf.float32),0,1
-        )
+    #Loss function
+    if n_classes == 3:
+        class_balancing = tf.stack(
+            [tf.ones_like(truth[:,:,:,0])/tf.reduce_sum(truth[:,:,:,0]),
+             tf.ones_like(truth[:,:,:,1])/tf.reduce_sum(truth[:,:,:,1]),
+             tf.ones_like(truth[:,:,:,2])/tf.reduce_sum(truth[:,:,:,2])],
+            axis=3
+            )
 
-    if weighted == True:
-        weights = tf.placeholder(tf.float32, [None,weight_x,weight_y,1])
-    else:
-        weights = None
+    elif n_classes == 2:
+        class_balancing = tf.stack(
+            [tf.ones_like(truth[:,:,:,0])/tf.reduce_sum(truth[:,:,:,0]),
+             tf.ones_like(truth[:,:,:,1])/tf.reduce_sum(truth[:,:,:,1])],
+            axis=3
+            )
+
+    weights = tf.placeholder(tf.float32, [None,weight_x,weight_y])
 
     if iglovikov == True:
         loss = iglovikov_loss(truth,network)
 
-    elif iglovikov == False and weighted == True:
-        loss = weighted_softmax_cross_entropy(network,truth,weights)
     else:
-        loss = tf.losses.softmax_cross_entropy(truth,network)
+        loss = tf.nn.sigmoid_cross_entropy_with_logits(
+            labels=truth,
+            logits=network)# * class_balancing
+        loss = tf.reduce_sum(loss,axis=3) * weights
+        loss = tf.reduce_mean(loss)
 
     if beta_l2_regularization > 0:
-        loss = loss + tf.add_n(slim.losses.get_regularization_losses())
+        reg_losses = slim.losses.get_regularization_losses()
+        loss = loss + tf.add_n(reg_losses) / len(reg_losses)
 
     #Evaluation metrics
-    accuracy,accuracy_op = tf.metrics.accuracy(truth_max,network_max)
-    mean_iou, mean_iou_op = tf.metrics.mean_iou(truth_max,network_max,
-                                                num_classes = n_classes)
-    recall,recall_op = tf.metrics.recall(truth_max,network_max)
-    precision,precision_op = tf.metrics.precision(truth_max,network_max)
+    if n_classes == 3:
+        bg = network[:,:,:,0]
+        fg = network[:,:,:,1]
+        ct = network[:,:,:,2]
+        binarized_network = tf.where(
+            fg > bg,
+            tf.ones_like(fg),
+            tf.zeros_like(bg)
+        )
+        binarized_network = tf.where(
+            fg > ct,
+            binarized_network,
+            tf.zeros_like(ct)
+        )
 
-    train_op = tf.train.MomentumOptimizer(learning_rate,0.99).minimize(loss)
+        prediction_network = tf.stack([bg,fg],axis=3)
+        prediction_network = tf.nn.softmax(prediction_network,axis=3)[:,:,:,1]
+        prediction_network = tf.where(
+            ct > fg,
+            tf.zeros_like(fg),
+            fg
+        )
+        binarized_truth = tf.where(
+            truth[:,:,:,1] > truth[:,:,:,0],
+            tf.ones_like(truth[:,:,:,1]),
+            tf.zeros_like(truth[:,:,:,0])
+        )
+
+    elif n_classes == 2:
+        binarized_truth = tf.argmax(truth,axis = 3)
+        binarized_network = tf.argmax(network,axis = 3)
+        prediction_network = tf.nn.softmax(network,axis=3)[:,:,:,1]
+
+    auc, auc_op = tf.metrics.auc(
+        binarized_truth,
+        binarized_network)
+    f1score,f1score_op = tf.contrib.metrics.f1_score(
+        binarized_truth,
+        binarized_network)
+    auc_batch, auc_batch_op = tf.metrics.auc(
+        binarized_truth,
+        binarized_network,
+        name='auc_batch')
+    f1score_batch,f1score_batch_op = tf.contrib.metrics.f1_score(
+        binarized_truth,
+        binarized_network,
+        name='f1_batch')
+
+    batch_vars = [v for v in tf.local_variables()]
+    batch_vars = [v for v in batch_vars if 'batch' in v.name]
+    #train_op = tf.train.MomentumOptimizer(learning_rate,0.99).minimize(loss)
+    global_step = tf.train.get_or_create_global_step()
+    learning_rate = tf.train.cosine_decay(
+        learning_rate=learning_rate,
+        global_step=global_step,
+        decay_steps=int(number_of_steps * 0.8)
+    )
+    optimizer = tf.train.AdamOptimizer(learning_rate)
+    train_op = optimizer.minimize(loss,global_step=global_step)
 
     summaries = set(tf.get_collection(tf.GraphKeys.SUMMARIES))
+
+    if aux_node:
+        presence = tf.reduce_sum(binarized_truth,axis=[1,2]) > 0
+        presence = tf.expand_dims(
+            tf.cast(presence,tf.float32),
+            axis=1)
+        class_loss = tf.reduce_mean(
+            tf.add_n(
+                [
+                    tf.nn.sigmoid_cross_entropy_with_logits(
+                        labels=presence,
+                        logits=c) for c in classifications
+                ]
+            )
+        )
+        trainable_variables = tf.trainable_variables()
+        aux_vars = []
+        for var in trainable_variables:
+            if 'Aux_Node' in var.name:
+                aux_vars.append(var)
+        aux_optimizer = tf.train.AdamOptimizer(learning_rate)
+        class_train_op = aux_optimizer.minimize(
+            class_loss,
+            #var_list=aux_vars,
+            global_step=global_step
+        )
+        train_op = tf.group(train_op,class_train_op)
+        loss = [loss,class_loss]
 
     for endpoint in endpoints:
         x = endpoints[endpoint]
@@ -972,7 +347,44 @@ def main(log_file,
     for variable in slim.get_model_variables():
         summaries.add(tf.summary.histogram(variable.op.name, variable))
 
-    summaries.add(tf.summary.scalar('loss', loss))
+    if aux_node:
+        summaries.add(tf.summary.scalar('loss', loss[0]))
+        summaries.add(tf.summary.scalar('class_loss', class_loss))
+    else:
+        summaries.add(tf.summary.scalar('loss', loss))
+    summaries.add(tf.summary.scalar('f1score', f1score))
+    summaries.add(tf.summary.scalar('auc', auc))
+
+    summaries.add(
+        tf.summary.image('image',inputs,max_outputs = 4))
+    summaries.add(
+        tf.summary.image('truth_image',
+                         tf.cast(
+                             tf.expand_dims(binarized_truth,-1),tf.float32),
+                         max_outputs = 4))
+    summaries.add(
+        tf.summary.image('weight_map',
+                         tf.expand_dims(weights,-1),
+                         max_outputs = 4))
+    summaries.add(
+        tf.summary.image(
+            'prediction',
+            tf.expand_dims(tf.nn.softmax(network,axis=3)[:,:,:,1],-1),
+            max_outputs = 4))
+    summaries.add(
+        tf.summary.image('prediction_binary',
+                         tf.cast(
+                             tf.expand_dims(binarized_network,-1),tf.float32),
+                         max_outputs = 4))
+    summaries.add(
+        tf.summary.image(
+            'compare_binary',
+            tf.stack(
+                [tf.cast(binarized_network,tf.float32),
+                 tf.cast(binarized_truth,tf.float32),
+                 tf.cast(tf.zeros_like(binarized_truth),tf.float32)],axis=-1),
+            max_outputs = 4)
+        )
 
     summary_op = tf.summary.merge(list(summaries), name='summary_op')
 
@@ -981,21 +393,14 @@ def main(log_file,
         tf.local_variables_initializer()
         )
 
-    image_path_list = glob(dataset_dir + '/*' + extension)
-
     tf.set_random_seed(0)
-    np.random.seed(0)
+    np.random.seed(42)
+
+    ckpt_exists = os.path.exists(checkpoint_path + '.index')
 
     if len(image_path_list) > 0:
 
-        log_write_print(log_file,'INPUT ARGUMENTS:')
-        for var in vars(args):
-            log_write_print(log_file,'\t{0}={1}'.format(var,vars(args)[var]))
-        print('\n')
-
-        if testing == False and prediction == False and\
-         large_image_prediction == False:
-
+        if mode == 'train':
             tmp = []
 
             for image_path in image_path_list:
@@ -1003,9 +408,10 @@ def main(log_file,
                     truth_dir,
                     image_path.split(os.sep)[-1]])
                 image = np.array(Image.open(truth_image_path))
-                if image.shape[0] == input_height and image.shape[1] == input_width:
+                if image.shape[0] == input_height\
+                 and image.shape[1] == input_width:
                     if truth_only == True:
-                        if len(np.unique(image)) == n_classes:
+                        if len(np.unique(image)) == 2:
                             tmp.append(image_path)
                     else:
                         tmp.append(image_path)
@@ -1019,15 +425,11 @@ def main(log_file,
             print("Training the network...\n")
             LOG = 'Step {0:d}: minibatch loss: {1:f}. '
             LOG += 'Average time/minibatch = {2:f}s. '
-            LOG += 'Accuracy: {3:f}; Mean IOU: {4:f}; '
-            LOG += 'Recall: {5:f}; Precision: {6:f}'
+            LOG += 'F1-Score: {3:f}; AUC: {4:f}; '
             SUMMARY = 'Step {0:d}: summary stored in {1!s}'
             CHECKPOINT = 'Step {0:d}: checkpoint stored in {1!s}'
             CHECKPOINT_PATH = os.path.join(save_checkpoint_folder,
                                            'my_u-net.ckpt')
-
-            if epochs != None:
-                number_of_steps = epochs * int(len(image_path_list)/batch_size)
 
             try:
                 os.makedirs(save_checkpoint_folder)
@@ -1074,69 +476,75 @@ def main(log_file,
                     )
 
                 time_list = []
-                for i in range(1,number_of_steps + 1):
-                    batch, truth_batch = next(image_generator,(None,None))
-                    if weighted == True:
-                        tmp_weights = [get_weight_map(t) for t in truth_batch]
 
-                        batch = np.stack(batch,0)
-                        truth_batch = np.stack(truth_batch,0)
-                        tmp_weights = np.stack(tmp_weights,0)
-                        a = time.perf_counter()
-                        _, l, summary,_,_,_,_ = sess.run(
-                            [train_op,loss,summary_op,
-                             accuracy_op,mean_iou_op,
-                             recall_op,precision_op],
-                            feed_dict = {truth:truth_batch,
-                                         inputs:batch,
-                                         weights: tmp_weights})
+                all_losses = []
+                all_class_losses = []
+                for i in range(number_of_steps):
+                    b = next(image_generator)
+                    batch,truth_batch,weight_batch = b
+                    batch = np.stack(batch,0)
+                    truth_batch = np.stack(truth_batch,0)
+                    weight_batch = np.stack(weight_batch,0)
 
-                        b = time.perf_counter()
-                        time_list.append(b - a)
-
-                    else:
-                        batch = np.stack(batch,0)
-                        truth_batch = np.stack(truth_batch,0)
-                        a = time.perf_counter()
-                        _, l, summary,_,_,_,_ = sess.run(
-                            [train_op,loss,summary_op,
-                             accuracy_op,mean_iou_op,
-                             recall_op,precision_op],
-                            feed_dict = {truth:truth_batch,
-                                         inputs:batch})
-
-                        b = time.perf_counter()
-                        time_list.append(b - a)
-
+                    a = time.perf_counter()
+                    _,l,_,_ = sess.run(
+                        [train_op,loss,
+                         auc_op,f1score_op],
+                        feed_dict = {truth:truth_batch,
+                                     inputs:batch,
+                                     weights:weight_batch})
+                    if aux_node:
+                        class_l = l[1]
+                        l = l[0]
+                        all_class_losses.append(class_l)
+                    all_losses.append(l)
+                    b = time.perf_counter()
+                    time_list.append(b - a)
                     if i % log_every_n_steps == 0 or i == 1 or\
                      i % number_of_steps == 0:
-                        acc,iou,rec,pre = sess.run([accuracy,mean_iou,
-                                                    recall,precision])
+                        l = np.mean(all_losses)
+                        all_losses = []
+                        f1,auc_ = sess.run([f1score,auc])
                         log_write_print(log_file,
                                         LOG.format(i,l,np.mean(time_list),
-                                                   acc,iou,rec,pre))
+                                                   f1,auc_))
                         time_list = []
+                        if aux_node:
+                            class_l = np.mean(all_class_losses)
+                            all_class_losses = []
+                            print('\tAux_Node loss = {}'.format(class_l))
 
                     if i % save_summary_steps == 0 or\
-                     i % number_of_steps == 0:
+                     i % number_of_steps == 0 or i == 1:
+                        summary = sess.run(
+                            summary_op,
+                            feed_dict = {truth:truth_batch,
+                                         inputs:batch,
+                                         weights:weight_batch})
                         writer.add_summary(summary,i)
-                        log_write_print(log_file,
-                                        SUMMARY.format(i,save_summary_folder))
+                        log_write_print(
+                            log_file,SUMMARY.format(i,save_summary_folder))
+                        sess.run(tf.local_variables_initializer())
 
                     if i % save_checkpoint_steps == 0 or\
-                     i % number_of_steps == 0:
-                        saver.save(sess, CHECKPOINT_PATH,global_step = i)
+                     i % number_of_steps == 0 or i == 1:
+                        saver.save(sess, CHECKPOINT_PATH,global_step=i)
                         log_write_print(log_file,
                                         CHECKPOINT.format(i,CHECKPOINT_PATH))
 
-        elif testing == True and os.path.exists(checkpoint_path + '.index'):
+                writer.add_summary(summary,i)
+                log_write_print(
+                    log_file,SUMMARY.format(i,save_summary_folder))
+                saver.save(sess,CHECKPOINT_PATH,global_step=i)
+                log_write_print(log_file,
+                                CHECKPOINT.format(i,CHECKPOINT_PATH))
 
+        elif mode == 'test' and ckpt_exists:
             LOG = 'Time/{0:d} images: {1:f}s (time/1 image: {2:f}s). '
-            LOG += 'Accuracy: {3:f}; Mean IOU: {4:f}; '
-            LOG += 'Recall: {5:f}; Precision: {6:f}'
+            LOG += 'F1-Score: {3:f}; AUC: {4:f}; '
 
-            FINAL_LOG = 'Final averages - time/image: {0:f}s; accuracy: {1:f}; '
-            FINAL_LOG += 'mean IOU: {2:f}; recall: {3:f}; precision: {4:f}'
+            FINAL_LOG = 'Final averages - time/image: {0}s; F1-score: {1}; '
+            FINAL_LOG += 'AUC: {2}'
 
             print('Testing...')
             with tf.Session() as sess:
@@ -1153,16 +561,14 @@ def main(log_file,
                     resize_height = resize_height,
                     resize_width = resize_width,
                     n_classes = n_classes,
-                    testing = True
+                    mode = 'test'
                     )
 
                 sess.run(init)
                 trained_network = saver.restore(sess,checkpoint_path)
 
-                all_accuracy = []
-                all_mean_iou = []
-                all_recall = []
-                all_precision = []
+                all_f1score = []
+                all_auc = []
                 time_list = []
 
                 for batch,truth_batch in image_generator:
@@ -1171,37 +577,52 @@ def main(log_file,
                     truth_batch = np.stack(truth_batch,0)
 
                     a = time.perf_counter()
-                    sess.run([network],
-                             feed_dict = {truth:truth_batch,inputs:batch})
+                    sess.run([network],feed_dict = {inputs:batch})
                     b = time.perf_counter()
                     t_image = (b - a)/n_images
                     time_list.append(t_image)
 
-                    sess.run([accuracy_op,mean_iou_op,recall_op,precision_op],
-                             feed_dict = {truth:truth_batch,inputs:batch})
+                    sess.run([auc_op,f1score_op,
+                              auc_batch_op,f1score_batch_op],
+                             feed_dict = {truth:truth_batch,
+                                          inputs:batch})
 
-                    acc,iou,rec,pre = sess.run([accuracy,mean_iou,
-                                                recall,precision])
+                    f1,auc_ = sess.run([f1score_batch,auc_batch])
 
-                    all_accuracy.append(acc)
-                    all_mean_iou.append(iou)
-                    all_recall.append(rec)
-                    all_precision.append(pre)
+                    all_f1score.append(f1)
+                    all_auc.append(auc_)
 
-                    output = LOG.format(n_images,b - a,t_image,acc,iou,rec,pre)
-                    log_write_print(log_file,output)
+                    output = LOG.format(n_images,b - a,t_image,f1,auc_)
+                    #log_write_print(log_file,output)
+                    tf.initializers.variables(var_list=batch_vars)
 
-                avg_time = np.mean(time_list)
-                avg_accuracy = np.mean(all_accuracy)
-                avg_mean_iou = np.mean(all_mean_iou)
-                avg_recall = np.mean(all_recall)
-                avg_precision = np.mean(all_precision)
+                f1score,auc_ = sess.run([f1score,auc])
+                averages = [np.mean(time_list),
+                            np.mean(all_f1score),
+                            np.mean(all_auc)]
 
-                output = FINAL_LOG.format(avg_time,avg_accuracy,avg_mean_iou,
-                                          avg_recall,avg_precision)
+                stds = [np.std(time_list),
+                        np.std(all_f1score),
+                        np.std(all_auc)]
+
+                min_ci = [np.percentile(time_list,2.5),
+                          np.percentile(all_f1score,2.5),
+                          np.percentile(all_auc,2.5)]
+                max_ci = [np.percentile(time_list,97.5),
+                          np.percentile(all_f1score,97.5),
+                          np.percentile(all_auc,97.5)]
+
+                tmp = '{0:.5f} (Mean:{1:.5f}; CI:{2:.5f}-{3:.5f};std:{4:.5f})'
+                output = FINAL_LOG.format(
+                    tmp.format(averages[0],averages[0],min_ci[0],
+                               max_ci[0],stds[0]),
+                    tmp.format(f1score,averages[1],min_ci[1],
+                               max_ci[1],stds[1]),
+                    tmp.format(auc_,averages[2],min_ci[2],
+                               max_ci[2],stds[2]))
                 log_write_print(log_file,output)
 
-        elif prediction == True and os.path.exists(checkpoint_path + '.index'):
+        elif mode == 'predict' and ckpt_exists:
             print('Predicting...')
 
             LOG = 'Time/{0:d} images: {1:f}s (time/1 image: {2:f}s).'
@@ -1217,18 +638,17 @@ def main(log_file,
                 image_generator = generate_images(
                     image_path_list,
                     truth_dir,
-                    batch_size = batch_size,
-                    crop = crop,
-                    net_x = net_x,
-                    net_y = net_y,
-                    input_height = input_height,
-                    input_width = input_width,
-                    resize = resize,
-                    resize_height = resize_height,
-                    resize_width = resize_width,
-                    n_classes = n_classes,
-                    testing = False,
-                    prediction = True
+                    batch_size=batch_size,
+                    crop=crop,
+                    net_x=net_x,
+                    net_y=net_y,
+                    input_height=input_height,
+                    input_width=input_width,
+                    resize=resize,
+                    resize_height=resize_height,
+                    resize_width=resize_width,
+                    n_classes=n_classes,
+                    mode='predict',
                     )
 
                 sess.run(init)
@@ -1241,7 +661,7 @@ def main(log_file,
                     batch = np.stack(batch,0)
 
                     a = time.perf_counter()
-                    prediction = sess.run(network_max,
+                    prediction = sess.run(binarized_network,
                                           feed_dict = {inputs:batch})
                     b = time.perf_counter()
                     t_image = (b - a)/n_images
@@ -1263,8 +683,7 @@ def main(log_file,
                 output = FINAL_LOG.format(avg_time)
                 log_write_print(log_file,output)
 
-        elif large_image_prediction == True and\
-         os.path.exists(checkpoint_path + '.index'):
+        elif mode == 'large_predict' and ckpt_exists:
             print('Predicting large image...')
 
             LOG = 'Time/{0:d} images: {1:f}s (time/1 image: {2:f}s).'
@@ -1292,7 +711,7 @@ def main(log_file,
                     input_height = input_height,
                     input_width = input_width,
                     padding = padding,
-                    large_image_prediction = True
+                    mode = 'large_predict'
                 )
 
                 sess.run(init)
@@ -1366,6 +785,11 @@ parser = argparse.ArgumentParser(
     prog = 'u-net.py',
     description = 'Multi-purpose U-Net implementation.'
 )
+
+parser.add_argument('--mode',dest = 'mode',
+                    action = 'store',
+                    default = 'train',
+                    help = 'Algorithm mode.')
 
 #Logs
 parser.add_argument('--log_file',dest = 'log_file',
@@ -1444,33 +868,23 @@ parser.add_argument('--truth_only',dest = 'truth_only',
                     action = 'store_true',
                     default = False,
                     help = 'Consider only images with all classes.')
-
-
-#Testing
-parser.add_argument('--testing',dest = 'testing',
+parser.add_argument('--aux_node',dest = 'aux_node',
                     action = 'store_true',
                     default = False,
-                    help = 'Used to test the algorithm.')
+                    help = 'Aux node for classification task in bottleneck.')
+
 parser.add_argument('--checkpoint_path',dest = 'checkpoint_path',
                     action = ToDirectory,
                     default = 'no_path',
-                    help = 'Path to checkpoint for testing.')
+                    help = 'Path to checkpoint to restore.')
 
 #Prediction
-parser.add_argument('--prediction',dest = 'prediction',
-                    action = 'store_true',
-                    default = False,
-                    help = 'Used to predict new entries.')
 parser.add_argument('--prediction_output',dest = 'prediction_output',
                     action = ToDirectory,
                     default = 'no_path',
                     help = 'Path where image predictions are stored.')
 
 #Large image prediction
-parser.add_argument('--large_image_prediction',dest = 'large_image_prediction',
-                    action = 'store_true',
-                    default = False,
-                    help = 'Predict large images after tiling.')
 parser.add_argument('--large_prediction_output',
                     dest = 'large_prediction_output',
                     action = ToDirectory,
@@ -1483,15 +897,15 @@ parser.add_argument('--convert_hsv',dest = 'convert_hsv',
                     default = False,
                     help = 'Converts RGB input to HSV.')
 parser.add_argument('--noise_chance',dest = 'noise_chance',
-                    action = 'store',type = int,
+                    action = 'store',type = float,
                     default = 0.1,
                     help = 'Probability to add noise.')
 parser.add_argument('--blur_chance',dest = 'blur_chance',
-                    action = 'store',type = int,
+                    action = 'store',type = float,
                     default = 0.05,
                     help = 'Probability to blur the input image.')
 parser.add_argument('--flip_chance',dest = 'flip_chance',
-                    action = 'store',type = int,
+                    action = 'store',type = float,
                     default = 0.2,
                     help = 'Probability to flip/rotate the image.')
 parser.add_argument('--resize',dest = 'resize',
@@ -1509,9 +923,15 @@ parser.add_argument('--resize_width',dest = 'resize_width',
 
 #Dataset
 parser.add_argument('--dataset_dir',dest = 'dataset_dir',
-                    action = ToDirectory,type = str,
-                    required = True,
+                    action = ToDirectory,
+                    default = None,
+                    type = str,
                     help = 'Directory where the training set is stored.')
+parser.add_argument('--path_csv',dest = 'path_csv',
+                    action = ToDirectory,
+                    default = None,
+                    type = str,
+                    help = 'CSV with QCd paths.')
 parser.add_argument('--truth_dir',dest = 'truth_dir',
                     action = ToDirectory,type = str,
                     help = 'Path to segmented images.')
@@ -1536,8 +956,14 @@ parser.add_argument('--n_classes',dest = 'n_classes',
                     action = 'store',type = int,
                     default = 2,
                     help = 'Number of classes in the segmented images.')
+parser.add_argument('--trial',dest = 'trial',
+                    action = 'store_true',
+                    default = False,
+                    help = 'Subsamples the dataset for a quick run.')
 
 args = parser.parse_args()
+
+mode = args.mode
 
 #Logs
 log_file = args.log_file
@@ -1550,6 +976,7 @@ save_summary_folder = args.save_summary_folder
 #Checkpoints
 save_checkpoint_steps = args.save_checkpoint_steps
 save_checkpoint_folder = args.save_checkpoint_folder
+checkpoint_path = args.checkpoint_path
 
 #Training
 iglovikov = args.iglovikov
@@ -1563,17 +990,12 @@ residuals = args.residuals
 weighted = args.weighted
 depth_mult = args.depth_mult
 truth_only = args.truth_only
-
-#Testing
-testing = args.testing
-checkpoint_path = args.checkpoint_path
+aux_node = args.aux_node
 
 #Prediction
-prediction = args.prediction
 prediction_output = args.prediction_output
 
 #Large image prediction
-large_image_prediction = args.large_image_prediction
 large_prediction_output = args.large_prediction_output
 
 #Pre-processing
@@ -1587,12 +1009,14 @@ resize_width = args.resize_width
 
 #Dataset
 dataset_dir = args.dataset_dir
+path_csv = args.path_csv
 truth_dir = args.truth_dir
 padding = args.padding
 extension = args.extension
 input_height = args.input_height
 input_width = args.input_width
 n_classes = args.n_classes
+trial = args.trial
 
 if __name__ == '__main__':
     print("Loading dependencies...")
@@ -1600,7 +1024,7 @@ if __name__ == '__main__':
     import sys
     import time
     from glob import glob
-    from math import floor
+    from math import floor,inf
     import numpy as np
     import cv2
     import tensorflow as tf
@@ -1613,40 +1037,41 @@ if __name__ == '__main__':
     slim = tf.contrib.slim
     variance_scaling_initializer =\
      tf.contrib.layers.variance_scaling_initializer
-    main(log_file = log_file,
-         log_every_n_steps = log_every_n_steps,
-         save_summary_steps = save_summary_steps,
-         save_summary_folder = save_summary_folder,
-         save_checkpoint_steps = save_checkpoint_steps,
-         save_checkpoint_folder = save_checkpoint_folder,
-         iglovikov = iglovikov,
-         batch_size = batch_size,
-         number_of_steps = number_of_steps,
-         epochs = epochs,
-         beta_l2_regularization = beta_l2_regularization,
-         learning_rate = learning_rate,
-         factorization = factorization,
-         residuals = residuals,
-         weighted = weighted,
-         depth_mult = depth_mult,
-         truth_only = truth_only,
-         testing = testing,
-         checkpoint_path = checkpoint_path,
-         prediction = prediction,
-         prediction_output = prediction_output,
-         large_image_prediction = large_image_prediction,
-         large_prediction_output = large_prediction_output,
-         convert_hsv = convert_hsv,
-         noise_chance = noise_chance,
-         blur_chance = blur_chance,
-         flip_chance = flip_chance,
-         resize = resize,
-         resize_height = resize_height,
-         resize_width = resize_width,
-         dataset_dir = dataset_dir,
-         truth_dir = truth_dir,
-         padding = padding,
-         extension = extension,
-         input_height = input_height,
-         input_width = input_width,
-         n_classes = n_classes)
+    main(log_file=log_file,
+         log_every_n_steps=log_every_n_steps,
+         save_summary_steps=save_summary_steps,
+         save_summary_folder=save_summary_folder,
+         save_checkpoint_steps=save_checkpoint_steps,
+         save_checkpoint_folder=save_checkpoint_folder,
+         iglovikov=iglovikov,
+         batch_size=batch_size,
+         number_of_steps=number_of_steps,
+         epochs=epochs,
+         beta_l2_regularization=beta_l2_regularization,
+         learning_rate=learning_rate,
+         factorization=factorization,
+         residuals=residuals,
+         weighted=weighted,
+         depth_mult=depth_mult,
+         truth_only=truth_only,
+         mode=mode,
+         checkpoint_path=checkpoint_path,
+         prediction_output=prediction_output,
+         large_prediction_output=large_prediction_output,
+         convert_hsv=convert_hsv,
+         noise_chance=noise_chance,
+         blur_chance=blur_chance,
+         flip_chance=flip_chance,
+         resize=resize,
+         resize_height=resize_height,
+         resize_width=resize_width,
+         dataset_dir=dataset_dir,
+         path_csv=path_csv,
+         truth_dir=truth_dir,
+         padding=padding,
+         extension=extension,
+         input_height=input_height,
+         input_width=input_width,
+         n_classes=n_classes,
+         trial=trial,
+         aux_node=aux_node)
