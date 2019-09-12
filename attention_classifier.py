@@ -25,26 +25,27 @@ from resnet_v2 import resnet_arg_scope
 from tensorflow.python.tools.inspect_checkpoint import print_tensors_in_checkpoint_file
 
 slim = tf.contrib.slim
+np.random.seed(42)
 
 height = 512
 width = 512
 n_channels = 3
-num_classes = 2
 is_training = True
 save_checkpoint_steps = 500
 save_summary_steps = 100
 beta_l2_regularization = 0.005
 
 checkpoint_path = sys.argv[1]
-image_folder = sys.argv[2]
-csv_path = sys.argv[3]
-learning_rate = float(sys.argv[4])
-iterations = int(sys.argv[5])
-batch_size = int(sys.argv[6])
-mode = str(sys.argv[7])
-checkpoint_save_path = str(sys.argv[8])
-attention = str(sys.argv[9])
-multi_gpu = str(sys.argv[10])
+csv_path = sys.argv[2]
+learning_rate = float(sys.argv[3])
+iterations = int(sys.argv[4])
+batch_size = int(sys.argv[5])
+mode = str(sys.argv[6])
+checkpoint_save_path = str(sys.argv[7])
+attention = str(sys.argv[8])
+multi_gpu = str(sys.argv[9])
+num_classes = int(sys.argv[10])
+
 if attention == 'True':
     attention = True
 if multi_gpu == 'True':
@@ -150,14 +151,23 @@ def csv_parser(csv_path,num_classes):
     file_names = []
     classes = []
     counter = [0 for i in range(num_classes)]
+    unique_classes = {}
     with open(csv_path) as o:
         lines = o.readlines()
     for line in lines:
         file_name, cl = line.split(',')
         file_names.append(file_name.encode('ascii'))
         cl = cl.strip()
+        try:
+            int(cl)
+        except:
+            if cl not in unique_classes:
+                unique_classes[cl] = str(len(unique_classes))
+            cl = unique_classes[cl]
         classes.append(cl)
         counter[int(cl)] += 1
+    file_name_list = file_names.copy()
+    np.random.shuffle(file_name_list)
     file_names = tf.convert_to_tensor(file_names)
     classes = tf.convert_to_tensor(np.array(classes))
     counter = np.array(counter)
@@ -172,7 +182,7 @@ def csv_parser(csv_path,num_classes):
         ''
     )
 
-    return table,weight_vector
+    return file_name_list,table,weight_vector
 
 def image_generator(image_path_list, batch_size, width, height, n_channels):
     """
@@ -217,10 +227,11 @@ def string_to_one_hot(string,one_hot_size):
 def loss_function(cl,predictions):
     weights = tf.reduce_sum(cl,0)
     weights = (weights * weight_vector) / (weights + 1)
-    pre_loss = tf.nn.sigmoid_cross_entropy_with_logits(
+    pre_loss = tf.nn.softmax_cross_entropy_with_logits_v2(
         labels = tf.squeeze(cl,1),
         logits = predictions)
-    weighted_loss = pre_loss * weight_vector
+    #weighted_loss = pre_loss * weight_vector * 100
+    weighted_loss = pre_loss
     return weighted_loss
 
 def check_size(image_path_list):
@@ -232,22 +243,27 @@ def check_size(image_path_list):
             new_path_list.append(image_path)
     return new_path_list
 
-image_path_list = glob(
-    os.path.join(image_folder,'*')
-    )
-
-image_path_list = check_size(image_path_list)
-
 if is_training == True: keep_prob = 0.8
 else: keep_prob = 1.
 
 if multi_gpu == False:
+    if mode == 'train' or mode == 'test':
+        image_path_list,table,weight_vector = csv_parser(csv_path,num_classes)
+
     inputs, file_names = image_generator(image_path_list,
                                          batch_size,
                                          height,
                                          width,
                                          n_channels
                                          )
+    if mode == 'train' or mode == 'test':
+        truth = table.lookup(file_names)
+
+        cl = tf.map_fn(
+            lambda x: string_to_one_hot(x,num_classes),
+            truth,
+            dtype=tf.float32
+        )
 
     fixed_file_names = tf.string_split(file_names,delimiter=os.sep)
     fixed_file_names = tf.sparse_to_dense(
@@ -256,22 +272,13 @@ if multi_gpu == False:
         sparse_values=fixed_file_names.values,
         default_value='')[:,-1]
 
-    if mode == 'train' or mode == 'test':
-        table,weight_vector = csv_parser(csv_path,num_classes)
-        truth = table.lookup(fixed_file_names)
-
-        cl = tf.map_fn(
-            lambda x: string_to_one_hot(x,num_classes),
-            truth,
-            dtype=tf.float32
-        )
     with slim.arg_scope(resnet_arg_scope()):
         resnet, end_points = resnet_v2_152(inputs,
                                            num_classes=num_classes,
                                            is_training=is_training)
 
 
-    if attention:
+    if attention == True:
         attention_modules = {
             1: attention_module(end_points['resnet_v2_152/block1'],
                                 num_classes,
@@ -314,12 +321,16 @@ else:
     for i,gpu in enumerate(gpus):
         with tf.device('/cpu:0'):
             with tf.name_scope('InputPipeline_{}'.format(i)):
+                if mode == 'train' or mode == 'test':
+                    image_path_list,table,weight_vector = csv_parser(csv_path,num_classes)
+
                 inputs, file_names = image_generator(image_path_list,
                                                      batch_size//len(gpus),
                                                      height,
                                                      width,
                                                      n_channels
                                                      )
+
                 if mode == 'train':
                     inputs = tf.image.random_flip_left_right(inputs)
                     inputs = tf.image.random_flip_up_down(inputs)
@@ -333,8 +344,8 @@ else:
                     default_value='')[:,-1]
 
                 if mode == 'train' or mode == 'test':
-                    table,weight_vector = csv_parser(csv_path,num_classes)
-                    truth = table.lookup(fixed_file_names)
+                    truth = table.lookup(file_names)
+
                     cl = tf.map_fn(
                         lambda x: string_to_one_hot(x,num_classes),
                         truth,
@@ -350,7 +361,7 @@ else:
                                                    reuse=reuse)
             with tf.variable_scope('AttentionModules'):
                 with slim.arg_scope([slim.conv2d],reuse=reuse):
-                    if attention:
+                    if attention == True:
                         attention_modules = {
                             1: attention_module(
                                 end_points['resnet_v2_152/block1'],
@@ -380,7 +391,7 @@ else:
                             num_classes,
                             [3, 3])
                     else:
-                        predictions = end_points['predictions'
+                        predictions = end_points['predictions']
                     all_predictions.append(predictions)
                     if mode == 'train' or mode == 'test':
                         all_classes.append(cl)
@@ -389,10 +400,12 @@ else:
 trainable_var = tf.trainable_variables()
 resnet_v2_variables = []
 
+print(trainable_var)
 for var in trainable_var:
+    print(var.name)
     if 'resnet_v2' in var.name and\
      'logits' not in var.name and\
-      'resnet_v2_101/conv1' not in var.name:
+      'resnet_v2_152/conv1' not in var.name:
         resnet_v2_variables.append(var)
 
 saver = tf.train.Saver(var_list=resnet_v2_variables)
@@ -479,8 +492,7 @@ if mode == 'train':
             a = time.perf_counter()
             _,l,_ = sess.run([train_op,loss,auc_op])
             b = time.perf_counter()
-            print(b-a)
-            if i % 5 == 0 or i == 1:
+            if i % 100 == 0 or i == 1:
                 print('Batch: {}; loss: {}; AUC: {}'.format(i,l,sess.run(auc)))
             if i % save_checkpoint_steps == 0:
                 other_saver.save(sess,os.path.join(os.getcwd(),
@@ -522,7 +534,7 @@ elif mode == 'test':
         print('Testing...')
         for i in range(1,iterations+1):
             _ = sess.run([auc_op])
-            if i % 5 == 0 or i == 1:
+            if i % 50 == 0 or i == 1:
                 print('\t',('{}/{}'.format(i,iterations)),sess.run(auc))
         print('final_auc:',sess.run(auc))
         coord.request_stop()

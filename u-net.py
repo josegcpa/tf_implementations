@@ -66,6 +66,7 @@ def main(mode,
          save_summary_folder,
          save_checkpoint_steps,
          save_checkpoint_folder,
+         squeeze_and_excite,
          iglovikov,
          batch_size,
          number_of_steps,
@@ -81,9 +82,7 @@ def main(mode,
          prediction_output,
          large_prediction_output,
          convert_hsv,
-         noise_chance,
-         blur_chance,
-         flip_chance,
+         data_augmentation_params,
          resize,
          resize_height,
          resize_width,
@@ -177,33 +176,12 @@ def main(mode,
     else:
         is_training = False
 
-    network,endpoints,classifications = u_net(
-        inputs,
-        final_endpoint = None,
-        padding = padding,
-        factorization = factorization,
-        residuals = residuals,
-        beta = beta_l2_regularization,
-        n_classes = n_classes,
-        resize = resize,
-        resize_height = resize_height,
-        resize_width = resize_width,
-        depth_mult = depth_mult
-        )
-    network = network + 1e-10
-
-    log_write_print(log_file,
-                    'Total parameters: {0:d} (trainable: {1:d})\n'.format(
-                        variables(tf.all_variables()),
-                        variables(tf.trainable_variables())
-                        ))
-
     if padding == 'VALID':
-        net_x,net_y = network.get_shape().as_list()[1:3]
+        net_x,net_y = input_height - 184,input_width - 184
         tf_shape = [None,net_x,net_y,n_classes]
         truth = tf.placeholder(tf.float32, tf_shape)
+        weights = tf.placeholder(tf.float32, [None,net_x,net_y,1])
         crop = True
-        weight_x,weight_y = net_x,net_y
 
     else:
         net_x,net_y = (None, None)
@@ -212,10 +190,46 @@ def main(mode,
         else:
             tf_shape = [None,input_height,input_width,n_classes]
         truth = tf.placeholder(tf.float32, tf_shape)
+        weights = tf.placeholder(tf.float32, [None,input_height,input_width,1])
         crop = False
-        weight_x, weight_y = input_height,input_width
+
+    if is_training == True:
+        IA = tf_da.ImageAugmenter(**data_augmentation_params)
+        inputs,mask,weights = tf.map_fn(
+            lambda x: IA.augment(x[0],x[1],x[2]),
+            [inputs,truth,weights],
+            (tf.float32,tf.float32,tf.float32)
+            )
+
+    else:
+        inputs = tf.image.convert_image_dtype(inputs,tf.float32)
+
+    weights = tf.squeeze(weights,axis=-1)
+
+    network,endpoints,classifications = u_net(
+        inputs,
+        final_endpoint=None,
+        padding=padding,
+        factorization=factorization,
+        residuals=residuals,
+        beta=beta_l2_regularization,
+        n_classes=n_classes,
+        resize=resize,
+        resize_height=resize_height,
+        resize_width=resize_width,
+        depth_mult=depth_mult,
+        aux_node=aux_node,
+        squeeze_and_excite=squeeze_and_excite
+        )
+
+    log_write_print(log_file,
+                    'Total parameters: {0:d} (trainable: {1:d})\n'.format(
+                        variables(tf.all_variables()),
+                        variables(tf.trainable_variables())
+                        ))
 
     saver = tf.train.Saver()
+    loading_saver = tf.train.Saver()
 
     #Loss function
     if n_classes == 3:
@@ -233,7 +247,7 @@ def main(mode,
             axis=3
             )
 
-    weights = tf.placeholder(tf.float32, [None,weight_x,weight_y])
+
 
     if iglovikov == True:
         loss = iglovikov_loss(truth,network)
@@ -289,6 +303,10 @@ def main(mode,
     f1score,f1score_op = tf.contrib.metrics.f1_score(
         binarized_truth,
         binarized_network)
+    m_iou,m_iou_op = tf.metrics.mean_iou(
+        labels=binarized_truth,
+        predictions=binarized_network,
+        num_classes=2)
     auc_batch, auc_batch_op = tf.metrics.auc(
         binarized_truth,
         binarized_network,
@@ -297,6 +315,11 @@ def main(mode,
         binarized_truth,
         binarized_network,
         name='f1_batch')
+    m_iou_batch,m_iou_batch_op = tf.metrics.mean_iou(
+        labels=binarized_truth,
+        predictions=binarized_network,
+        num_classes=2,
+        name='m_iou_batch')
 
     batch_vars = [v for v in tf.local_variables()]
     batch_vars = [v for v in batch_vars if 'batch' in v.name]
@@ -308,7 +331,10 @@ def main(mode,
         decay_steps=int(number_of_steps * 0.8)
     )
     optimizer = tf.train.AdamOptimizer(learning_rate)
-    train_op = optimizer.minimize(loss,global_step=global_step)
+
+    update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
+    with tf.control_dependencies(update_ops):
+        train_op = optimizer.minimize(loss,global_step=global_step)
 
     summaries = set(tf.get_collection(tf.GraphKeys.SUMMARIES))
 
@@ -332,11 +358,13 @@ def main(mode,
             if 'Aux_Node' in var.name:
                 aux_vars.append(var)
         aux_optimizer = tf.train.AdamOptimizer(learning_rate)
-        class_train_op = aux_optimizer.minimize(
-            class_loss,
-            #var_list=aux_vars,
-            global_step=global_step
-        )
+        update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
+        with tf.control_dependencies(update_ops):
+            class_train_op = aux_optimizer.minimize(
+                    class_loss,
+                    var_list=aux_vars,
+                    global_step=global_step
+                )
         train_op = tf.group(train_op,class_train_op)
         loss = [loss,class_loss]
 
@@ -457,11 +485,14 @@ def main(mode,
 
                 sess.run(init)
 
-                pre_processing_chances = [noise_chance,blur_chance,flip_chance]
+
+                if ckpt_exists:
+                    loading_saver.restore(sess,checkpoint_path)
+                    print('Restored')
+
                 image_generator = generate_images(
                     image_path_list,
                     truth_dir,
-                    chances = pre_processing_chances,
                     batch_size = batch_size,
                     crop = crop,
                     net_x = net_x,
@@ -493,6 +524,7 @@ def main(mode,
                         feed_dict = {truth:truth_batch,
                                      inputs:batch,
                                      weights:weight_batch})
+
                     if aux_node:
                         class_l = l[1]
                         l = l[0]
@@ -541,10 +573,10 @@ def main(mode,
 
         elif mode == 'test' and ckpt_exists:
             LOG = 'Time/{0:d} images: {1:f}s (time/1 image: {2:f}s). '
-            LOG += 'F1-Score: {3:f}; AUC: {4:f}; '
+            LOG += 'F1-Score: {3:f}; AUC: {4:f}; MeanIOU: {5:f}'
 
             FINAL_LOG = 'Final averages - time/image: {0}s; F1-score: {1}; '
-            FINAL_LOG += 'AUC: {2}'
+            FINAL_LOG += 'AUC: {2}; MeanIOU: {3}'
 
             print('Testing...')
             with tf.Session() as sess:
@@ -569,6 +601,7 @@ def main(mode,
 
                 all_f1score = []
                 all_auc = []
+                all_m_iou = []
                 time_list = []
 
                 for batch,truth_batch in image_generator:
@@ -582,44 +615,53 @@ def main(mode,
                     t_image = (b - a)/n_images
                     time_list.append(t_image)
 
-                    sess.run([auc_op,f1score_op,
-                              auc_batch_op,f1score_batch_op],
+                    sess.run([auc_op,f1score_op,m_iou_op,
+                              auc_batch_op,f1score_batch_op,m_iou_batch_op],
                              feed_dict = {truth:truth_batch,
                                           inputs:batch})
 
-                    f1,auc_ = sess.run([f1score_batch,auc_batch])
+                    f1,auc_,iou = sess.run([f1score_batch,
+                                            auc_batch,
+                                            m_iou_batch])
 
                     all_f1score.append(f1)
                     all_auc.append(auc_)
+                    all_m_iou.append(iou)
 
-                    output = LOG.format(n_images,b - a,t_image,f1,auc_)
+                    output = LOG.format(n_images,b - a,t_image,f1,auc_,iou)
                     #log_write_print(log_file,output)
                     tf.initializers.variables(var_list=batch_vars)
 
-                f1score,auc_ = sess.run([f1score,auc])
+                f1score_,auc_,iou = sess.run([f1score,auc,m_iou])
                 averages = [np.mean(time_list),
                             np.mean(all_f1score),
-                            np.mean(all_auc)]
+                            np.mean(all_auc),
+                            np.mean(all_m_iou)]
 
                 stds = [np.std(time_list),
                         np.std(all_f1score),
-                        np.std(all_auc)]
+                        np.std(all_auc),
+                        np.std(all_m_iou)]
 
                 min_ci = [np.percentile(time_list,2.5),
                           np.percentile(all_f1score,2.5),
-                          np.percentile(all_auc,2.5)]
+                          np.percentile(all_auc,2.5),
+                          np.percentile(all_m_iou,2.5)]
                 max_ci = [np.percentile(time_list,97.5),
                           np.percentile(all_f1score,97.5),
-                          np.percentile(all_auc,97.5)]
+                          np.percentile(all_auc,97.5),
+                          np.percentile(all_m_iou,97.5)]
 
                 tmp = '{0:.5f} (Mean:{1:.5f}; CI:{2:.5f}-{3:.5f};std:{4:.5f})'
                 output = FINAL_LOG.format(
                     tmp.format(averages[0],averages[0],min_ci[0],
                                max_ci[0],stds[0]),
-                    tmp.format(f1score,averages[1],min_ci[1],
+                    tmp.format(f1score_,averages[1],min_ci[1],
                                max_ci[1],stds[1]),
                     tmp.format(auc_,averages[2],min_ci[2],
-                               max_ci[2],stds[2]))
+                               max_ci[2],stds[2]),
+                    tmp.format(iou,averages[3],min_ci[3],
+                               max_ci[3],stds[3]))
                 log_write_print(log_file,output)
 
         elif mode == 'predict' and ckpt_exists:
@@ -628,8 +670,8 @@ def main(mode,
             LOG = 'Time/{0:d} images: {1:f}s (time/1 image: {2:f}s).'
             FINAL_LOG = 'Average time/image: {0:f}'
 
+            prob_network = tf.nn.softmax(network)[:,:,:,1]
             with tf.Session() as sess:
-
                 try:
                     os.makedirs(prediction_output)
                 except:
@@ -648,7 +690,67 @@ def main(mode,
                     resize_height=resize_height,
                     resize_width=resize_width,
                     n_classes=n_classes,
-                    mode='predict',
+                    mode='predict'
+                    )
+
+                sess.run(init)
+                trained_network = saver.restore(sess,checkpoint_path)
+
+                time_list = []
+
+                for batch,image_names in image_generator:
+                    n_images = len(batch)
+                    batch = np.stack(batch,0)
+
+                    a = time.perf_counter()
+                    prediction = sess.run(prob_network,
+                                          feed_dict = {inputs:batch})
+                    b = time.perf_counter()
+                    t_image = (b - a)/n_images
+                    time_list.append(t_image)
+
+                    output = LOG.format(n_images,b - a,t_image)
+                    log_write_print(log_file,output)
+
+                    for i in range(prediction.shape[0]):
+                        image = prediction[i,:,:]
+                        image_name = image_names[i].split(os.sep)[-1]
+                        image_name = image_name.split('.')[0]
+                        image_name = image_name + '.tif'
+                        image_output = os.path.join(prediction_output,
+                                                    image_name)
+                        tiff.imsave(image_output,image)
+
+                avg_time = np.mean(time_list)
+                output = FINAL_LOG.format(avg_time)
+                log_write_print(log_file,output)
+
+        elif mode == 'tumble_predict' and ckpt_exists:
+            print('Predicting...')
+
+            LOG = 'Time/{0:d} images: {1:f}s (time/1 image: {2:f}s).'
+            FINAL_LOG = 'Average time/image: {0:f}'
+
+            with tf.Session() as sess:
+                try:
+                    os.makedirs(prediction_output)
+                except:
+                    pass
+
+                image_generator = generate_images(
+                    image_path_list,
+                    truth_dir,
+                    batch_size=batch_size,
+                    crop=crop,
+                    net_x=net_x,
+                    net_y=net_y,
+                    input_height=input_height,
+                    input_width=input_width,
+                    resize=resize,
+                    resize_height=resize_height,
+                    resize_width=resize_width,
+                    n_classes=n_classes,
+                    mode='tumble_predict'
                     )
 
                 sess.run(init)
@@ -670,14 +772,31 @@ def main(mode,
                     output = LOG.format(n_images,b - a,t_image)
                     log_write_print(log_file,output)
 
-                    for i in range(prediction.shape[0]):
+                    curr_image_path = ''
+                    rot = 0
+                    flip = False
+                    for image_name,i in zip(image_names,
+                                            range(prediction.shape[0])):
                         image = prediction[i,:,:]
-                        image = np.stack((image,image,image),axis = 2)
-                        image_name = image_names[i].split(os.sep)[-1]
-                        image_output = os.path.join(prediction_output,
-                                                    image_name)
-                        image_handle = Image.fromarray(image.astype('uint8'))
-                        image_handle.save(image_output)
+                        if curr_image_path != image_name:
+                            rot = 0
+                            flip = False
+                            if curr_image_path != '':
+                                image = np.uint8(np.round(accumulator / 8))
+                                image = np.stack((image,image,image),axis = 2)
+                                image_name = image_names[i].split(os.sep)[-1]
+                                image_output = os.path.join(prediction_output,
+                                                            image_name)
+                                image_handle = Image.fromarray(image)
+                                image_handle.save(image_output)
+                            accumulator = image
+                            curr_image_path = image_name
+                        else:
+                            rot += 1
+                            if rot > 3:
+                                rot = 0
+                                flip = True
+                            accumulator += recover_from_rot(image,rot,flip)
 
                 avg_time = np.mean(time_list)
                 output = FINAL_LOG.format(avg_time)
@@ -824,7 +943,11 @@ parser.add_argument('--save_checkpoint_folder',dest = 'save_checkpoint_folder',
                     help = 'Directory where checkpoints are saved.')
 
 #Training
-parser.add_argument('--iglovikov',dest = 'iglovikov',
+parser.add_argument('--squeeze_and_excite',dest='squeeze_and_excite',
+                    action='store_true',
+                    default=False,
+                    help='Adds SC SqAndEx layers to the enc/dec.')
+parser.add_argument('--iglovikov',dest='iglovikov',
                     action = 'store_true',
                     default = False,
                     help = 'Use Iglovikov loss function.')
@@ -891,6 +1014,35 @@ parser.add_argument('--large_prediction_output',
                     default = 'no_path',
                     help = 'Path to store large image predictions.')
 
+#Data augmentation
+for arg in [
+    ['brightness_max_delta',16. / 255.,float],
+    ['saturation_lower',0.8,float],
+    ['saturation_upper',1.2,float],
+    ['hue_max_delta',0.2,float],
+    ['contrast_lower',0.8,float],
+    ['contrast_upper',1.2,float],
+    ['salt_prob',0.1,float],
+    ['pepper_prob',0.1,float],
+    ['noise_stddev',0.05,float],
+    ['blur_probability',0.1,float],
+    ['blur_size',3,int],
+    ['blur_mean',0,float],
+    ['blur_std',0.05,float],
+    ['discrete_rotation',True,'store_true'],
+    ['continuous_rotation',True,'store_true'],
+    ['min_jpeg_quality',30,int],
+    ['max_jpeg_quality',70,int]
+]:
+    print(arg[0])
+    if arg[2] != 'store_true':
+        parser.add_argument('--{}'.format(arg[0]),dest=arg[0],
+                            action='store',type=arg[2],
+                            default=arg[1])
+    else:
+        parser.add_argument('--{}'.format(arg[0]),dest=arg[0],
+                            action='store_true',
+                            default=False)
 #Pre-processing
 parser.add_argument('--convert_hsv',dest = 'convert_hsv',
                     action = 'store_true',
@@ -904,10 +1056,6 @@ parser.add_argument('--blur_chance',dest = 'blur_chance',
                     action = 'store',type = float,
                     default = 0.05,
                     help = 'Probability to blur the input image.')
-parser.add_argument('--flip_chance',dest = 'flip_chance',
-                    action = 'store',type = float,
-                    default = 0.2,
-                    help = 'Probability to flip/rotate the image.')
 parser.add_argument('--resize',dest = 'resize',
                     action = 'store_true',
                     default = False,
@@ -979,6 +1127,7 @@ save_checkpoint_folder = args.save_checkpoint_folder
 checkpoint_path = args.checkpoint_path
 
 #Training
+squeeze_and_excite = args.squeeze_and_excite
 iglovikov = args.iglovikov
 batch_size = args.batch_size
 number_of_steps = args.number_of_steps
@@ -998,11 +1147,29 @@ prediction_output = args.prediction_output
 #Large image prediction
 large_prediction_output = args.large_prediction_output
 
+#Data augmentation
+data_augmentation_params = {
+    'brightness_max_delta':args.brightness_max_delta,
+    'saturation_lower':args.saturation_lower,
+    'saturation_upper':args.saturation_upper,
+    'hue_max_delta':args.hue_max_delta,
+    'contrast_lower':args.contrast_lower,
+    'contrast_upper':args.contrast_upper,
+    'salt_prob':args.salt_prob,
+    'pepper_prob':args.pepper_prob,
+    'noise_stddev':args.noise_stddev,
+    'blur_probability':args.blur_probability,
+    'blur_size':args.blur_size,
+    'blur_mean':args.blur_mean,
+    'blur_std':args.blur_std,
+    'discrete_rotation':args.discrete_rotation,
+    'continuous_rotation':args.continuous_rotation,
+    'min_jpeg_quality':args.min_jpeg_quality,
+    'max_jpeg_quality':args.max_jpeg_quality
+}
+
 #Pre-processing
 convert_hsv = args.convert_hsv
-noise_chance = args.noise_chance
-blur_chance = args.blur_chance
-flip_chance = args.flip_chance
 resize = args.resize
 resize_height = args.resize_height
 resize_width = args.resize_width
@@ -1037,12 +1204,14 @@ if __name__ == '__main__':
     slim = tf.contrib.slim
     variance_scaling_initializer =\
      tf.contrib.layers.variance_scaling_initializer
+
     main(log_file=log_file,
          log_every_n_steps=log_every_n_steps,
          save_summary_steps=save_summary_steps,
          save_summary_folder=save_summary_folder,
          save_checkpoint_steps=save_checkpoint_steps,
          save_checkpoint_folder=save_checkpoint_folder,
+         squeeze_and_excite=squeeze_and_excite,
          iglovikov=iglovikov,
          batch_size=batch_size,
          number_of_steps=number_of_steps,
@@ -1059,9 +1228,7 @@ if __name__ == '__main__':
          prediction_output=prediction_output,
          large_prediction_output=large_prediction_output,
          convert_hsv=convert_hsv,
-         noise_chance=noise_chance,
-         blur_chance=blur_chance,
-         flip_chance=flip_chance,
+         data_augmentation_params=data_augmentation_params,
          resize=resize,
          resize_height=resize_height,
          resize_width=resize_width,

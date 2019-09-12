@@ -9,7 +9,7 @@ from tensorflow.python.framework import dtypes
 
 slim = tf.contrib.slim
 
-N_ITER_D = 5
+N_ITER_D = 1
 N_ITER_G = 1
 
 LOG ="""
@@ -25,6 +25,7 @@ Step: {}/{}
     GradientPenaltyIdeal = {}
 
     Full_loss = {}"""
+
 class ToDirectory(argparse.Action):
     """
     Action class to use as in add_argument to automatically return the absolute
@@ -273,6 +274,8 @@ class CycleGAN():
             else:
                 weights_regularizer = None
 
+            initializer = tf.initializers.random_normal(stddev=0.02)
+
             with tf.name_scope('Generator_{}'.format(scope)) and\
              tf.variable_scope('Generator_{}'.format(scope)):
                 with slim.arg_scope(
@@ -280,6 +283,7 @@ class CycleGAN():
                     activation_fn=tf.nn.relu,
                     kernel_size=[3,3],
                     padding='SAME',
+                    weights_initializer=initializer,
                     normalizer_fn=slim.batch_norm,
                     normalizer_params={'is_training':self.is_training},
                     reuse=reuse
@@ -328,6 +332,9 @@ class CycleGAN():
                 )
             else:
                 weights_regularizer = None
+
+            initializer = tf.initializers.random_normal(stddev=0.02)
+
             with tf.name_scope('Discriminator_{}'.format(scope)) and\
              tf.variable_scope('Discriminator_{}'.format(scope)):
                 batch,h,w,c = images.shape.as_list()
@@ -352,6 +359,7 @@ class CycleGAN():
                     activation_fn=tf.nn.relu,
                     kernel_size=[3,3],
                     padding='SAME',
+                    weights_initializer=initializer,
                     normalizer_fn=slim.batch_norm,
                     normalizer_params={'is_training':self.is_training},
                     reuse=reuse
@@ -380,11 +388,13 @@ class CycleGAN():
                         256,
                         activation_fn=tf.nn.relu,
                         reuse=reuse,
+                        weights_initializer=initializer,
                         scope='pre_classification')
                     cl = slim.fully_connected(
                         features,
                         1,
                         activation_fn=None,
+                        weights_initializer=initializer,
                         reuse=reuse,
                         scope='classification')
             return cl
@@ -636,13 +646,13 @@ def train(ideal_image_path=None,
 
     if compound_loss == False:
         g_opt_ideal = tf.train.AdamOptimizer(learning_rate,
-                                             beta1=0.0,beta2=0.9)
+                                             beta1=0.5,beta2=0.9)
         g_opt_nonideal = tf.train.AdamOptimizer(learning_rate,
-                                                beta1=0.0,beta2=0.9)
+                                                beta1=0.5,beta2=0.9)
         d_opt_ideal = tf.train.AdamOptimizer(learning_rate,
-                                             beta1=0.0,beta2=0.9)
+                                             beta1=0.5,beta2=0.9)
         d_opt_nonideal = tf.train.AdamOptimizer(learning_rate,
-                                                beta1=0.0,beta2=0.9)
+                                                beta1=0.5,beta2=0.9)
 
         g_train_op = tf.group(
             g_opt_ideal.minimize(
@@ -656,12 +666,14 @@ def train(ideal_image_path=None,
             )
 
         if wasserstein == True:
-            d_train_nonideal_loss = cycle_gan.d_nonideal_loss + gp_non_ideal
-            d_train_ideal_loss = cycle_gan.d_ideal_loss + gp_ideal
+            d_train_nonideal_loss = tf.add(
+                cycle_gan.d_nonideal_loss/2,gp_non_ideal)
+            d_train_ideal_loss = tf.add(
+                cycle_gan.d_ideal_loss/2,gp_ideal)
 
         else:
-            d_train_nonideal_loss = cycle_gan.d_nonideal_loss
-            d_train_ideal_loss = cycle_gan.d_ideal_loss
+            d_train_nonideal_loss = cycle_gan.d_nonideal_loss / 2
+            d_train_ideal_loss = cycle_gan.d_ideal_loss / 2
         d_train_op_nonideal = d_opt_nonideal.minimize(
             d_train_nonideal_loss,
             global_step=global_step,
@@ -763,6 +775,7 @@ def train(ideal_image_path=None,
                 l = sess.run(all_losses)
             else:
                 sess.run(train_op)
+                l = sess.run(all_losses)
             if i % log_every_n_steps == 0 or i == 1:
                 print(LOG.format(
                           i,
@@ -914,4 +927,5 @@ if __name__ == '__main__':
               learning_rate=args.learning_rate,
               epochs=args.epochs,
               lambda_cycle=args.lambda_cycle,
-              wasserstein=args.wasserstein)
+              wasserstein=args.wasserstein,
+              compound_loss=args.compound_loss)

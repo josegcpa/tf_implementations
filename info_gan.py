@@ -103,8 +103,8 @@ class InfoGAN:
                  cat_list=[],
                  n_cont=0):
 
-        self.wgan_loss = True
-        self.gradient_penalising = True
+        self.wgan_loss = False
+        self.gradient_penalising = False
         self.gradient_clipping = False
 
         self.mode = mode
@@ -684,9 +684,13 @@ class InfoGAN:
             else:
                 # Vanilla GAN loss
                 base_disc_loss = tf.subtract(
-                    tf.reduce_mean(tf.log(self.cl_real + 1e-16)),
-                    tf.reduce_mean(tf.log(1 - self.cl_gen + 1e-16))
+                    tf.reduce_mean(
+                        tf.log(tf.nn.sigmoid(self.cl_gen) + 1e-16)),
+                    tf.reduce_mean(
+                        tf.log(1 - tf.nn.sigmoid(self.cl_gen) + 1e-16))
                     )
+                self.gen_loss = tf.reduce_mean(
+                    tf.log(tf.nn.sigmoid(self.cl_gen) + 1e-16))
 
             if self.gradient_penalising == True:
                 # Gradient penalising from the WGAN-GP paper. This should be
@@ -805,7 +809,6 @@ class InfoGAN:
             self.generated_images
             self.summary_op=tf.summary.merge(list(self.summaries),
                                                name='summary_op')
-
 
         elif self.mode == 'test':
             pass

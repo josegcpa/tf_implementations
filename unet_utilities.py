@@ -2,9 +2,13 @@ import os
 import numpy as np
 from math import inf
 import cv2
+import tifffile as tiff
 import tensorflow as tf
 from scipy.spatial import distance
 from PIL import Image
+from albumentations import ElasticTransform
+
+import tf_da
 
 tf.logging.set_verbosity(tf.logging.ERROR)
 slim = tf.contrib.slim
@@ -42,7 +46,10 @@ def u_net(inputs,
           resize_height = 256,
           resize_width = 256,
           depth_mult = 1,
-          is_training = True):
+          is_training = True,
+          aux_node = False,
+          squeeze_and_excite = False,
+          data_augmentation_params={}):
 
     """
     Implementation of a standard U-net with some tweaks, namely:
@@ -69,51 +76,6 @@ def u_net(inputs,
     * depth_mult - factor to increase or decrease the depth in each layer
     """
 
-    def pp_image(image):
-        """
-        Function to preprocess images with data augmentation - only performs
-        operations that alter brightness, saturation, hue and contrast.
-        """
-        def distort_colors_0(image):
-            image = tf.image.random_brightness(image, max_delta=16. / 255.)
-            image = tf.image.random_saturation(image, lower=0.5, upper=1.5)
-            image = tf.image.random_hue(image, max_delta=0.05)
-            image = tf.image.random_contrast(image, lower=0.5, upper=1.5)
-            return image
-
-        def distort_colors_1(image):
-            image = tf.image.random_saturation(image, lower=0.5, upper=1.5)
-            image = tf.image.random_brightness(image, max_delta=16. / 255.)
-            image = tf.image.random_contrast(image, lower=0.5, upper=1.5)
-            image = tf.image.random_hue(image, max_delta=0.2)
-            return image
-
-        def distort_colors_2(image):
-            image = tf.image.random_contrast(image, lower=0.5, upper=1.5)
-            image=tf.image.random_hue(image, max_delta=0.2)
-            image = tf.image.random_brightness(image, max_delta=16. / 255.)
-            image = tf.image.random_saturation(image, lower=0.5, upper=1.5)
-            return image
-
-        def distort_colors(image,color_ordering):
-            image = tf.cond(
-                tf.equal(color_ordering,0),
-                lambda: distort_colors_0(image),
-                lambda: tf.cond(
-                    tf.equal(color_ordering,1),
-                    lambda: distort_colors_1(image),
-                    lambda: tf.cond(tf.equal(color_ordering,2),
-                        lambda: distort_colors_2(image),
-                        lambda: image)
-                )
-            )
-            return image
-
-        color_ordering = tf.random_uniform([],0,6,tf.int32)
-        image = distort_colors(image,color_ordering)
-        image = tf.clip_by_value(image,0.,1.)
-        return image
-
     def pixel_normalization(inputs):
         """
         The pixel normalization presented in the ProGAN paper. This
@@ -130,8 +92,6 @@ def u_net(inputs,
         )
         norm_factor = tf.expand_dims(norm_factor,-1)
         return inputs / norm_factor
-
-    endpoints = {}
 
     def conv2d(x,depth,size,stride,scope,
                factorization = False,padding = padding):
@@ -175,20 +135,23 @@ def u_net(inputs,
     def rec_block_wrapper(net,depth,factorization,
                           residuals,endpoints,padding,
                           name,red_block_name):
-        new_size = net.get_shape().as_list()
-        new_size = [new_size[1] * 2,new_size[2] * 2]
-        net = tf.image.resize_nearest_neighbor(net,new_size)
-        net = slim.conv2d(net,depth,[2,2],scope = 'conv2d_0_',
-                          padding = 'SAME')
+
+
         if padding == 'VALID':
+            new_size = net.get_shape().as_list()
+            new_size = [new_size[1] * 2,new_size[2] * 2]
+            net = tf.image.resize_nearest_neighbor(net,new_size)
+            net = slim.conv2d(net,depth,[2,2],scope = 'conv2d_0_',
+                              padding = 'SAME')
             n = endpoints[red_block_name].get_shape().as_list()[1]
             n = (n - net.get_shape().as_list()[1])/2
             concat_net = crop(endpoints[red_block_name],n)
         else:
+            net = slim.conv2d_transpose(net,depth,[2,2],stride=2)
             concat_net = endpoints[red_block_name]
         net = tf.concat([net,concat_net],
                         axis = 3)
-        net = block(net,d_current,3,1,padding,factorization)
+        net = block(net,depth,3,1,padding,factorization)
         endpoints[name] = net
 
         return net,endpoints
@@ -238,6 +201,41 @@ def u_net(inputs,
                    factorization = factorization,padding = 'SAME')
         return tf.add(input_n,r)
 
+    def c_squeeze_and_excite(net,r=1):
+        with tf.variable_scope('ChannelSqueezeAndExcite'):
+            squeeze = tf.reduce_mean(net,axis=[1,2])
+            squeeze = tf.layers.dense(squeeze,
+                                      units=net.get_shape().as_list()[-1]//r,
+                                      activation=tf.nn.relu,
+                                      name='channel_squeeze_and_excite_1')
+            excite = tf.layers.dense(squeeze,
+                                     units=net.get_shape().as_list()[-1],
+                                     activation=tf.sigmoid,
+                                     name='channel_squeeze_and_excite_2')
+            excite = tf.expand_dims(
+                tf.expand_dims(excite,axis=1),
+                axis=1)
+        return net * excite
+
+    def s_squeeze_and_excite(net):
+        with tf.variable_scope('SpatialSqueezeAndExcite'):
+            squeeze = slim.conv2d(net,
+                                  num_outputs=1,
+                                  kernel_size=[1,1],
+                                  stride=1,
+                                  activation_fn=tf.nn.sigmoid,
+                                  scope = 'spatial_squeeze_and_excite',
+                                  padding = 'SAME')
+        return net * squeeze
+
+    def sc_squeeze_and_excite(net,r=1):
+        with tf.variable_scope('ConcurrentSCSqueezeAndExcite'):
+            c = c_squeeze_and_excite(net,r=r)
+            s = s_squeeze_and_excite(net)
+        return c + s
+
+    endpoints = {}
+
     if beta > 0:
         weights_regularizer = tf.contrib.layers.l2_regularizer(beta)
     else:
@@ -252,7 +250,9 @@ def u_net(inputs,
         weights_regularizer=weights_regularizer,
         #normalizer_fn=pixel_normalization
         normalizer_fn=slim.batch_norm,
-        normalizer_params={"is_training":is_training}
+        normalizer_params={"is_training":is_training,
+                           "decay":0.9,
+                           "zero_debias_moving_mean":True}
         ):
 
         with tf.variable_scope('U-net', None, [inputs]):
@@ -262,13 +262,6 @@ def u_net(inputs,
                     inputs,
                     [resize_height,resize_width],
                     method = tf.image.ResizeMethod.BILINEAR)
-
-            if is_training == True:
-                inputs = tf.map_fn(pp_image,
-                                   inputs,
-                                   dtype=tf.float32)
-            else:
-                inputs = tf.cast(inputs,tf.float32)
 
             inputs = slim.batch_norm(inputs,is_training=is_training)
 
@@ -281,6 +274,8 @@ def u_net(inputs,
                         residuals=residuals,
                         endpoints=endpoints,
                         name='Red_Block_1')
+                    if squeeze_and_excite == True:
+                        net = sc_squeeze_and_excite(net,r=2)
 
                 with tf.variable_scope('Red_Block_2',None,[net]):
                     net,endpoints = red_block_wrapper(
@@ -290,6 +285,8 @@ def u_net(inputs,
                         residuals=residuals,
                         endpoints=endpoints,
                         name='Red_Block_2')
+                    if squeeze_and_excite == True:
+                        net = sc_squeeze_and_excite(net,r=2)
 
                 with tf.variable_scope('Red_Block_3',None,[net]):
                     net,endpoints = red_block_wrapper(
@@ -299,6 +296,8 @@ def u_net(inputs,
                         residuals=residuals,
                         endpoints=endpoints,
                         name='Red_Block_3')
+                    if squeeze_and_excite == True:
+                        net = sc_squeeze_and_excite(net,r=2)
 
                 with tf.variable_scope('Red_Block_4',None,[net]):
                     net,endpoints = red_block_wrapper(
@@ -308,6 +307,8 @@ def u_net(inputs,
                         residuals=residuals,
                         endpoints=endpoints,
                         name='Red_Block_4')
+                    if squeeze_and_excite == True:
+                        net = sc_squeeze_and_excite(net,r=2)
 
                 with tf.variable_scope('Red_Block_5',None,[net]):
                     d_current = int(1024 * depth_mult)
@@ -316,21 +317,22 @@ def u_net(inputs,
                     if final_endpoint == 'Red_Block_5':
                         return net,endpoints
 
-                    flat_bottleneck = tf.reduce_max(net,axis=[1,2])
-                    classification = fc_layer_classification(
-                        flat_bottleneck,
-                        depth=256,
-                        n_classes=1,
-                        activation_fn=tf.nn.relu,
-                        weights_regularizer=weights_regularizer,
-                        normalizer_fn=slim.batch_norm,
-                        normalizer_params={"is_training":is_training}
-                    )
-
-                endpoints['Classification'] = classification
-                classifications.append(classification)
-                if final_endpoint == 'Classification':
-                    return net,endpoints
+                    if aux_node == True:
+                        flat_bottleneck = tf.reduce_max(net,axis=[1,2])
+                        classification = fc_layer_classification(
+                            flat_bottleneck,
+                            depth=256,
+                            n_classes=1,
+                            activation_fn=tf.nn.relu,
+                            weights_regularizer=weights_regularizer,
+                            normalizer_fn=slim.batch_norm,
+                            normalizer_params={"is_training":is_training}
+                        )
+                if aux_node == True:
+                    endpoints['Classification'] = classification
+                    classifications.append(classification)
+                    if final_endpoint == 'Classification':
+                        return net,endpoints
 
             with tf.variable_scope('Rec_Operations',None,[net]):
                 with tf.variable_scope('Rec_Block_1',None,[net]):
@@ -343,6 +345,8 @@ def u_net(inputs,
                         padding=padding,
                         name='Rec_Block_1',
                         red_block_name='Red_Block_4')
+                    if squeeze_and_excite == True:
+                        net = sc_squeeze_and_excite(net,r=2)
 
                 with tf.variable_scope('Rec_Block_2',None,[net]):
                     net,endpoints = rec_block_wrapper(
@@ -354,6 +358,8 @@ def u_net(inputs,
                         padding=padding,
                         name='Rec_Block_2',
                         red_block_name='Red_Block_3')
+                    if squeeze_and_excite == True:
+                        net = sc_squeeze_and_excite(net,r=2)
 
                 with tf.variable_scope('Rec_Block_3',None,[net]):
                     net,endpoints = rec_block_wrapper(
@@ -365,6 +371,8 @@ def u_net(inputs,
                         padding=padding,
                         name='Rec_Block_3',
                         red_block_name='Red_Block_2')
+                    if squeeze_and_excite == True:
+                        net = sc_squeeze_and_excite(net,r=2)
 
                 with tf.variable_scope('Rec_Block_4',None,[net]):
                     net,endpoints = rec_block_wrapper(
@@ -376,6 +384,8 @@ def u_net(inputs,
                         padding=padding,
                         name='Rec_Block_4',
                         red_block_name='Red_Block_1')
+                    if squeeze_and_excite == True:
+                        net = sc_squeeze_and_excite(net,r=2)
 
                 with tf.variable_scope('Final',None,[net]):
                     net = slim.conv2d(net, n_classes, [1, 1],
@@ -386,6 +396,8 @@ def u_net(inputs,
                     endpoints['Final'] = net
                     if final_endpoint == 'Final':
                         return net,endpoints
+    for endpoint in endpoints:
+        print(endpoint,endpoints[endpoint])
     return net,endpoints,classifications
 
 def iglovikov_loss(truth,network):
@@ -449,136 +461,16 @@ def image_to_array(image_path):
     """
 
     with Image.open(image_path) as o:
-        return np.array(o)
+        arr = np.array(o)
+        if len(arr.shape) == 3:
+            if arr.shape[2] == 4:
+                arr = arr[:,:,:-1]
+        return arr
 
-def realtime_image_augmentation(image_list,truth_list,weight_map_list,
-                                classification_list=None,
-                                noise_chance = 0.05,blur_chance = 0.05,
-                                flip_chance = 0.5):
-    """A generator that performs a series of image manipulations to an original
-    image using salt, pepper, channel dropout, gaussian noise, blur, rotation
-    and flipping.
-    Additionally, it normalizes the input image through linear stretching and
-    standardization.
+def normal_image_generator(image_list,*mask_list,
+                           classification_list=None,
+                           random=True,eternal=True):
 
-    Arguments:
-    * image_list - a list of image paths
-    * truth_path - a list of ground truth images
-    * noise_chance - the probability of adding salt, pepper (to the image or a
-    single channel) or gaussian noise
-    * blur_chance - chance of applying median bluring to the input
-    * flip_chance - chance of rotating the input by n * 90 degrees and/or by
-    [0,89] degrees
-    """
-
-    def get_proportions():
-        true = np.random.sample() / 10
-        false = 1 - true
-        return true,false
-
-    def get_sp_mask(image):
-        true,false = get_proportions()
-        mask = np.random.choice(a = [0,1],size = image.shape[:2],
-                                p = [false,true])
-        mask = tuple([mask for i in range(image.shape[2])])
-        mask = np.stack(mask, axis = 2)
-
-        return mask
-
-    while True:
-        indexes = np.arange(0,len(image_list))
-        np.random.shuffle(indexes)
-
-        for index in indexes:
-            image = image_list[index]
-            if truth_list != None:
-                truth_image = truth_list[index]
-            else:
-                truth_image = None
-
-            if weight_map_list != None:
-                weight_map = weight_map_list[index]
-            else:
-                weight_map = None
-
-            if classification_list != None:
-                classification = classification_list[index]
-            else:
-                classification = None
-
-            im_shape = image.shape
-            if im_shape[0] == im_shape[1]:
-                if np.random.sample() <= blur_chance:
-                    #Median blur
-                    cv2.medianBlur(image,np.random.randint(2,4) * 2 - 1)
-                if np.random.sample() <= noise_chance:
-                    #Salt
-                    mask = get_sp_mask(image)
-                    image[mask == 1] = 255
-                if np.random.sample() <= noise_chance:
-                    #Pepper
-                    mask = get_sp_mask(image)
-                    image[mask == 1] = 0
-                if np.random.sample() <= noise_chance:
-                    #Gaussian noise
-                    mean = 0
-                    var = 0.1
-                    sigma = var**0.5
-                    gauss = np.random.normal(mean,sigma,image.shape)
-                    gauss = gauss.reshape(*image.shape)
-                    image = image + gauss
-                for i in range(0,3):
-                    if np.random.sample() <= noise_chance:
-                        #Channel dropout
-                        mask = get_sp_mask(image)[:,:,0]
-                        image[:,:,i][mask == 1] = 0
-                    if np.random.sample() <= noise_chance:
-                        #Channel dropin
-                        mask = get_sp_mask(image)[:,:,0]
-                        image[:,:,i][mask == 1] = 255
-                if np.random.sample() <= flip_chance:
-                    #Image flipping along one of the axis
-                    flip = np.random.randint(0,2)
-                    image = np.flip(image,flip)
-                    if truth_list != None:
-                        truth_image = np.flip(truth_image,flip)
-                    if weight_map_list != None:
-                        weight_map = np.flip(weight_map,flip)
-                if np.random.sample() <= flip_chance:
-                    #Continuous image rotation (0,89)
-                    rotation = np.random.sample() * 89
-                    rot_tup = (im_shape[0]/2, im_shape[1]/2)
-                    rotation_matrix = cv2.getRotationMatrix2D(rot_tup,
-                                                              rotation, 1)
-                    image = cv2.warpAffine(image, rotation_matrix,
-                                           (im_shape[0],im_shape[1]))
-                    if truth_list != None:
-                        truth_image = cv2.warpAffine(truth_image,
-                                                     rotation_matrix,
-                                                     (im_shape[0],im_shape[1]),
-                                                     flags = cv2.INTER_NEAREST)
-                    if weight_map_list != None:
-                        weight_map = cv2.warpAffine(weight_map,
-                                                    rotation_matrix,
-                                                    (im_shape[0],im_shape[1]),
-                                                    flags = cv2.INTER_NEAREST)
-                    #noise the margins that were left blank from the rotation
-
-                if np.random.sample() <= flip_chance:
-                    #Discrete image rotation (0,90,180,270)
-                    rotation = np.random.randint(0,3)
-                    image = np.rot90(image,rotation,(0,1))
-                    if truth_list != None:
-                        truth_image = np.rot90(truth_image,rotation,(0,1))
-                    if weight_map_list != None:
-                        weight_map = np.rot90(weight_map,rotation,(0,1))
-                if weight_map_list != None:
-                    wms = weight_map.shape
-                    weight_map = np.reshape(weight_map,(wms[0],wms[1]))
-
-                yield image, truth_image, weight_map, classification
-
-def normal_image_generator(image_list,truth_list):
     """
     A standard image generator, to be used for testing purposes only. Goes over
     a list of image paths and outputs an image and its corresponding segmented
@@ -586,17 +478,41 @@ def normal_image_generator(image_list,truth_list):
 
     Arguments:
     * image_path_list - a list of image paths
-    * truth_path - a list of ground truth images
+    * *mask_list - a list of ground truth images or any other masks
+    * classification_list - a list containing classifications
+    * random - whether to randomize the list of images each time
+    * eternal - whether to continue indefinitely
     """
-    indexes = np.arange(0,len(image_list))
-    for i in indexes:
-        image = image_list[i]
-        truth_image = truth_list[i]
-        yield image,truth_image
 
-def single_image_generator(image_path_list):
+    cont = True
+
+    while cont == True:
+        indexes = np.arange(0,len(image_list))
+        if random == True:
+            np.random.shuffle(indexes)
+
+        for index in indexes:
+            image = image_list[index]
+
+            masks = [mask[index] for mask in mask_list]
+
+            if classification_list != None:
+                classification = classification_list[index]
+            else:
+                classification = None
+
+            im_shape = image.shape
+
+            if im_shape[0] == im_shape[1]:
+                yield image, (*masks), classification
+
+        if eternal == False:
+            cont = False
+
+def tumble_image_generator(image_path_list):
     """
-    Generates a single image at a time for prediction purposes.
+    Generates the 8 possible conformations for each image obtained through
+    flipping and rotating.
 
     Arguments:
     * image_path_list - a list of image paths
@@ -604,6 +520,28 @@ def single_image_generator(image_path_list):
     for image_path in image_path_list:
         image = image_to_array(image_path)
         yield image,image_path
+        for i in range(3):
+            rot = np.rot90(image)
+            yield rot,image_path
+        image = np.flipud(image)
+        for i in range(3):
+            rot = np.rot90(image)
+            yield rot,image_path
+
+def recover_from_rot(image,rot=1,flip=False):
+    """
+    Based on the tumble_image_generator, returns the original image based on
+    how many rotations it went through and whether it was flipped or not.
+
+    Arguments:
+    * image - a 2+-dimensional numpy array
+    * rot - number of rotations the image underwent
+    * flip - whether the image was flipped or not
+    """
+    if flip == True:
+        return np.flipud(np.rot90(image,-rot))
+    else:
+        return np.rot90(image,-rot)
 
 def generate_tiles(large_image,
                    input_height = 256,input_width = 256,
@@ -670,7 +608,7 @@ def remap_tiles(mask,division_mask,h_1,w_1,tile):
     return mask,division_mask
 
 def generate_images(image_path_list,truth_path,batch_size,crop,
-                    chances = [0,0,0],net_x = None,net_y = None,
+                    net_x = None,net_y = None,
                     input_height = 256,input_width = 256,resize = False,
                     resize_height = 256, resize_width = 256,
                     padding = 'VALID',n_classes = 2,
@@ -699,12 +637,9 @@ def generate_images(image_path_list,truth_path,batch_size,crop,
     * mode - algorithm mode [train].
     """
 
-    a = True
-    batch = []
+
 
     if mode == 'train':
-        truth_batch = []
-
         image_list = []
         truth_list = []
         weight_map_list = []
@@ -754,24 +689,52 @@ def generate_images(image_path_list,truth_path,batch_size,crop,
                         truth_img,
                         dsize = (resize_height,resize_width),
                         interpolation = cv2.INTER_NEAREST)
-            weight_map = get_weight_map(truth_img)
-            dist_weight_map = get_near_weight_map(truth_img,w0=5,sigma=20)
+            weight_map = get_weight_map(truth_img,)
+            dist_weight_map = get_near_weight_map(truth_img,w0=2,sigma=20)
             weight_map = weight_map + dist_weight_map
             image_list.append(image_to_array(image_path))
             truth_list.append(truth_img)
             weight_map_list.append(weight_map)
 
-        generator = realtime_image_augmentation(
-            image_list=image_list,
-            truth_list=truth_list,
-            weight_map_list=weight_map_list,
-            noise_chance=chances[0],
-            blur_chance=chances[1],
-            flip_chance=chances[2])
+        generator = normal_image_generator(
+            image_list,truth_list,weight_map_list,
+            classification_list=None,
+            random=True,eternal=True
+        )
+
+        batch = []
+        truth_batch = []
+        weight_batch = []
+
+        et = ElasticTransform(sigma=30,alpha_affine=30,p=0.7)
+
+        while True:
+            for element in generator:
+                img,truth_img,weight_map,_ = element
+
+                out = et(image=img,
+                         masks=[truth_img,weight_map])
+                img,(truth_img,weight_map) = out['image'],out['masks']
+
+                if len(batch) >= batch_size:
+                    batch = []
+                    truth_batch = []
+                    weight_batch = []
+                if net_x != None and net_y != None:
+                    x1,y1 = truth_img.shape[0:2]
+                    x2,y2 = (int((x1 - net_x)/2),int((y1 - net_y)/2))
+                    truth_img = truth_img[x2:x1 - x2,y2:y1 - y2,:]
+                    weight_map = weight_map[x2:x1 - x2,y2:y1 - y2]
+                batch.append(img)
+                truth_batch.append(truth_img)
+                weight_batch.append(weight_map)
+
+                if len(batch) >= batch_size:
+                    yield batch,truth_batch,weight_batch
+            if len(batch) > 0:
+                yield batch,truth_batch,weight_batch
 
     elif mode == 'test':
-        truth_batch = []
-
         image_list = []
         truth_list = []
 
@@ -817,58 +780,37 @@ def generate_images(image_path_list,truth_path,batch_size,crop,
             image_list.append(image_to_array(image_path))
             truth_list.append(truth_img)
 
-        generator = normal_image_generator(image_list,
-                                           truth_list)
+        generator = normal_image_generator(
+            image_list,truth_list,
+            classification_list=None,
+            random=False,eternal=False
+        )
+
+        batch = []
+        truth_batch = []
+
+        for element in generator:
+            img,truth_img,_ = element
+
+            img = img / 255.
+            img = img.astype(np.float32)
+            if len(batch) >= batch_size:
+                batch = []
+                truth_batch = []
+            if net_x != None and net_y != None:
+                x1,y1 = truth_img.shape[0:2]
+                x2,y2 = (int((x1 - net_x)/2),int((y1 - net_y)/2))
+                truth_img = truth_img[x2:x1 - x2,y2:y1 - y2,:]
+            batch.append(img)
+            truth_batch.append(truth_img)
+
+            if len(batch) >= batch_size:
+                yield batch,truth_batch
+        if len(batch) > 0:
+            yield batch,truth_batch
+
     elif mode == 'predict':
         generator = single_image_generator(image_path_list)
-
-    if mode == 'train' or mode == 'test':
-        weight_batch = []
-        while a == True:
-            for element in generator:
-                if mode == 'train':
-                    img,truth_img,weight_map,_ = element
-                else:
-                    img,truth_img = element
-                #Normalize data between 0 - 1
-                img = img / 255.
-                img = img.astype(np.float32)
-                #for i in range(3):
-                    #tmp = img[:,:,i]
-                    #z_tmp = (tmp - np.mean(tmp)) / np.std(tmp)
-                    #img[:,:,i] = z_tmp
-                    #num = (z_tmp - np.min(z_tmp))
-                    #den = (np.max(z_tmp) - np.min(z_tmp))
-                    #img[:,:,i] = num / den
-                if len(batch) >= batch_size:
-                    batch = []
-                    truth_batch = []
-                    weight_batch = []
-                if net_x != None and net_y != None:
-                    x1,y1 = truth_img.shape[0:2]
-                    x2,y2 = (int((x1 - net_x)/2),int((y1 - net_y)/2))
-                    truth_img = truth_img[x2:x1 - x2,y2:y1 - y2,:]
-                    if mode == 'train':
-                        weight_map = weight_map[x2:x1 - x2,y2:y1 - y2]
-                batch.append(img)
-                truth_batch.append(truth_img)
-                if mode == 'train':
-                    weight_batch.append(weight_map)
-
-                if len(batch) >= batch_size:
-                    if mode == 'train':
-                        yield batch,truth_batch,weight_batch
-                    else:
-                        yield batch,truth_batch
-            if len(batch) > 0:
-                if mode == 'train':
-                    yield batch,truth_batch,weight_batch
-                else:
-                    yield batch,truth_batch
-            if mode == 'test':
-                a = False
-
-    elif mode == 'predict':
         batch_paths = []
         for img,img_path in generator:
             if len(batch) >= batch_size:
@@ -876,13 +818,24 @@ def generate_images(image_path_list,truth_path,batch_size,crop,
                 batch_paths = []
             img = img / 255.
             img = img.astype(np.float32)
-            #for i in range(3):
-                #tmp = img[:,:,i]
-                #z_tmp = (tmp - np.mean(tmp)) / np.std(tmp)
-                #img[:,:,i] = z_tmp
-                #num = (z_tmp - np.min(z_tmp))
-                #den = (np.max(z_tmp) - np.min(z_tmp))
-                #img[:,:,i] = num / den
+            batch.append(img)
+            batch_paths.append(img_path)
+
+            if len(batch) >= batch_size:
+                yield batch,batch_paths
+        if len(batch) > 0:
+            yield batch,batch_paths
+
+
+    elif mode == 'tumble_predict':
+        genereator = tumble_image_generator(image_path_list)
+        batch_paths = []
+        for img,img_path in generator:
+            if len(batch) >= batch_size:
+                batch = []
+                batch_paths = []
+            img = img / 255.
+            img = img.astype(np.float32)
             batch.append(img)
             batch_paths.append(img_path)
 
@@ -926,22 +879,104 @@ def generate_images(image_path_list,truth_path,batch_size,crop,
             if len(batch) > 0:
                 yield batch,batch_paths,batch_coord,batch_shape
 
-    elif mode == 'tumble_predict':
-        batch_paths = []
-        for img,img_path in generator:
-            for rotation in range(1,4):
-                img = (img - np.min(img)) / (np.max(img) - np.min(img))
-                if len(batch) >= batch_size:
-                    batch = []
-                    batch_paths = []
+# TODO: rewrite this for Philip project
+def generate_images_propagation(
+    image_path_list,truth_path,propagation_path,
+    batch_size=4,crop=False,
+    chances = [0,0,0],net_x = None,net_y = None,
+    input_height = 256,input_width = 256,resize = False,
+    padding = 'VALID',truth_only = False,weight_maps = True):
+    """
+    Multi-purpose image generator.
 
-                    batch.append(img)
-                    batch_paths.append(img_path)
+    Arguments [default]:
+    * image_path_list - a list of image paths
+    * truth_path - a list of ground truth image paths
+    * batch_size - the size of the batch
+    * crop - whether the ground truth image should be cropped or not
+    * chances - chances for the realtime_image_augmentation [[0,0,0]]
+    * net_x - output height for the network [None]
+    * net_y - output width for the network [None]
+    * input_height - input height for the network [256]
+    * input_width - input width for the network [256]
+    * resize - whether the input should be resized or not [False]
+    * resize_height - height of the resized input [256]
+    * resize_width - width of the resized input [256]
+    * padding - whether VALID or SAME padding should be used ['VALID']
+    * n_classes - no. of classes [2]
+    * truth_only - whether only positive images should be used [False]
+    * mode - algorithm mode [train].
+    """
+
+    a = True
+    batch = []
+    truth_batch = []
+
+    image_list = []
+    truth_list = []
+    weight_map_list = []
+
+    for i,image_path in enumerate(image_path_list):
+        class_array = np.array([-1 for i in range(n_classes)])
+        if i % 5 == 0: print(i)
+        image_name = image_path.split(os.sep)[-1]
+        truth_image_path = os.path.join(truth_path,image_name)
+        propagation_image_path = os.path.join(propagation_path,image_name)
+        truth_img = image_to_array(truth_image_path)
+        propa_img = image_to_array(propagation_image_path)
+
+        if len(truth_img.shape) == 3:
+            truth_img = np.mean(truth_img,axis=2)
+
+        if len(propa_img.shape) == 3:
+            propa_img = np.mean(propa_img,axis=2)
+
+        truth_img = np.where(truth_img > 0.5,1.,0.)
+        truth_img = np.stack([1. - truth_img,truth_img],axis=2)
+
+        propa_img = np.where(propa_img > 0,1.,0.)
+
+        weight_map = get_weight_map(truth_img)
+        dist_weight_map = get_near_weight_map(truth_img,w0=5,sigma=20)
+        weight_map = weight_map + dist_weight_map
+        image_list.append(image_to_array(image_path))
+        truth_list.append(truth_img)
+        weight_map_list.append(weight_map * propa_img)
+
+    generator = realtime_image_augmentation(
+        image_list,
+        truth_list,
+        weight_map_list,
+        noise_chance=chances[0],
+        blur_chance=chances[1],
+        flip_chance=chances[2])
+
+    weight_batch = []
+    while a == True:
+        for element in generator:
+            img,truth_img,weight_map,_ = element
+            #Normalize data between 0 - 1
+            img = img / 255.
+            img = img.astype(np.float32)
+            if len(batch) >= batch_size:
+                batch = []
+                truth_batch = []
+                weight_batch = []
+            if net_x != None and net_y != None:
+                x1,y1 = truth_img.shape[0:2]
+                x2,y2 = (int((x1 - net_x)/2),int((y1 - net_y)/2))
+                truth_img = truth_img[x2:x1 - x2,y2:y1 - y2,:]
+                if mode == 'train':
+                    weight_map = weight_map[x2:x1 - x2,y2:y1 - y2]
+            batch.append(img)
+            truth_batch.append(truth_img)
+            if mode == 'train':
+                weight_batch.append(weight_map)
 
             if len(batch) >= batch_size:
-                yield batch,batch_paths
+                yield batch,truth_batch,weight_batch
         if len(batch) > 0:
-            yield batch,batch_paths
+            yield batch,truth_batch,weight_batch
 
 def classification_generator(image_path_list,classification_list,
                              chances = [0,0,0],
