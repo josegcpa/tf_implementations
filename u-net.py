@@ -147,7 +147,8 @@ def main(mode,
 
     print("Preparing the network...\n")
 
-    inputs = tf.placeholder(tf.float32, [None,input_height,input_width,3])
+    inputs = tf.placeholder(tf.uint8, [None,input_height,input_width,3],
+                            name='InputTensor')
 
     if dataset_dir != None:
         image_path_list = glob(dataset_dir + '/*' + extension)
@@ -179,8 +180,10 @@ def main(mode,
     if padding == 'VALID':
         net_x,net_y = input_height - 184,input_width - 184
         tf_shape = [None,net_x,net_y,n_classes]
-        truth = tf.placeholder(tf.float32, tf_shape)
-        weights = tf.placeholder(tf.float32, [None,net_x,net_y,1])
+        truth = tf.placeholder(tf.float32, tf_shape,
+                               name='TruthTensor')
+        weights = tf.placeholder(tf.float32, [None,net_x,net_y,1],
+                                 name='WeightsTensor')
         crop = True
 
     else:
@@ -189,12 +192,15 @@ def main(mode,
             tf_shape = [None,resize_height,resize_width,n_classes]
         else:
             tf_shape = [None,input_height,input_width,n_classes]
-        truth = tf.placeholder(tf.float32, tf_shape)
-        weights = tf.placeholder(tf.float32, [None,input_height,input_width,1])
+        truth = tf.placeholder(tf.float32, tf_shape,
+                               name='TruthTensor')
+        weights = tf.placeholder(tf.float32, [None,input_height,input_width,1],
+                                 name='WeightsTensor')
         crop = False
 
     if is_training == True:
         IA = tf_da.ImageAugmenter(**data_augmentation_params)
+        inputs_original = inputs
         inputs,mask,weights = tf.map_fn(
             lambda x: IA.augment(x[0],x[1],x[2]),
             [inputs,truth,weights],
@@ -246,8 +252,6 @@ def main(mode,
              tf.ones_like(truth[:,:,:,1])/tf.reduce_sum(truth[:,:,:,1])],
             axis=3
             )
-
-
 
     if iglovikov == True:
         loss = iglovikov_loss(truth,network)
@@ -384,6 +388,8 @@ def main(mode,
     summaries.add(tf.summary.scalar('auc', auc))
 
     summaries.add(
+        tf.summary.image('image',inputs_original,max_outputs = 4))
+    summaries.add(
         tf.summary.image('image',inputs,max_outputs = 4))
     summaries.add(
         tf.summary.image('truth_image',
@@ -485,7 +491,6 @@ def main(mode,
 
                 sess.run(init)
 
-
                 if ckpt_exists:
                     loading_saver.restore(sess,checkpoint_path)
                     print('Restored')
@@ -521,9 +526,10 @@ def main(mode,
                     _,l,_,_ = sess.run(
                         [train_op,loss,
                          auc_op,f1score_op],
-                        feed_dict = {truth:truth_batch,
-                                     inputs:batch,
-                                     weights:weight_batch})
+                        feed_dict = {
+                            'InputTensor:0':batch,
+                            'TruthTensor:0':truth_batch,
+                            'WeightsTensor:0':weight_batch})
 
                     if aux_node:
                         class_l = l[1]
@@ -550,9 +556,10 @@ def main(mode,
                      i % number_of_steps == 0 or i == 1:
                         summary = sess.run(
                             summary_op,
-                            feed_dict = {truth:truth_batch,
-                                         inputs:batch,
-                                         weights:weight_batch})
+                            feed_dict = {
+                                'InputTensor:0':batch,
+                                'TruthTensor:0':truth_batch,
+                                'WeightsTensor:0':weight_batch})
                         writer.add_summary(summary,i)
                         log_write_print(
                             log_file,SUMMARY.format(i,save_summary_folder))
@@ -610,15 +617,14 @@ def main(mode,
                     truth_batch = np.stack(truth_batch,0)
 
                     a = time.perf_counter()
-                    sess.run([network],feed_dict = {inputs:batch})
                     b = time.perf_counter()
                     t_image = (b - a)/n_images
                     time_list.append(t_image)
 
                     sess.run([auc_op,f1score_op,m_iou_op,
                               auc_batch_op,f1score_batch_op,m_iou_batch_op],
-                             feed_dict = {truth:truth_batch,
-                                          inputs:batch})
+                             feed_dict = {'TruthTensor:0':truth_batch,
+                                          'InputTensor:0':batch})
 
                     f1,auc_,iou = sess.run([f1score_batch,
                                             auc_batch,
@@ -704,7 +710,7 @@ def main(mode,
 
                     a = time.perf_counter()
                     prediction = sess.run(prob_network,
-                                          feed_dict = {inputs:batch})
+                                          feed_dict = {'InputTensor':batch})
                     b = time.perf_counter()
                     t_image = (b - a)/n_images
                     time_list.append(t_image)
@@ -764,7 +770,7 @@ def main(mode,
 
                     a = time.perf_counter()
                     prediction = sess.run(binarized_network,
-                                          feed_dict = {inputs:batch})
+                                          feed_dict = {'InputTensor':batch})
                     b = time.perf_counter()
                     t_image = (b - a)/n_images
                     time_list.append(t_image)
@@ -846,7 +852,7 @@ def main(mode,
 
                     a = time.perf_counter()
                     prediction = sess.run(network,
-                                          feed_dict = {inputs:batch})
+                                          feed_dict = {'InputTensor':batch})
                     b = time.perf_counter()
                     t_image = (b - a)/n_images
                     time_list.append(t_image)

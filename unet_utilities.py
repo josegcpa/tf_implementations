@@ -791,9 +791,6 @@ def generate_images(image_path_list,truth_path,batch_size,crop,
 
         for element in generator:
             img,truth_img,_ = element
-
-            img = img / 255.
-            img = img.astype(np.float32)
             if len(batch) >= batch_size:
                 batch = []
                 truth_batch = []
@@ -816,8 +813,6 @@ def generate_images(image_path_list,truth_path,batch_size,crop,
             if len(batch) >= batch_size:
                 batch = []
                 batch_paths = []
-            img = img / 255.
-            img = img.astype(np.float32)
             batch.append(img)
             batch_paths.append(img_path)
 
@@ -834,7 +829,6 @@ def generate_images(image_path_list,truth_path,batch_size,crop,
             if len(batch) >= batch_size:
                 batch = []
                 batch_paths = []
-            img = img / 255.
             img = img.astype(np.float32)
             batch.append(img)
             batch_paths.append(img_path)
@@ -943,21 +937,13 @@ def generate_images_propagation(
         truth_list.append(truth_img)
         weight_map_list.append(weight_map * propa_img)
 
-    generator = realtime_image_augmentation(
-        image_list,
-        truth_list,
-        weight_map_list,
-        noise_chance=chances[0],
-        blur_chance=chances[1],
-        flip_chance=chances[2])
+    generator = normal_image_generator(image_list,truth_list,weight_map_list)
 
     weight_batch = []
     while a == True:
         for element in generator:
             img,truth_img,weight_map,_ = element
             #Normalize data between 0 - 1
-            img = img / 255.
-            img = img.astype(np.float32)
             if len(batch) >= batch_size:
                 batch = []
                 truth_batch = []
@@ -966,12 +952,10 @@ def generate_images_propagation(
                 x1,y1 = truth_img.shape[0:2]
                 x2,y2 = (int((x1 - net_x)/2),int((y1 - net_y)/2))
                 truth_img = truth_img[x2:x1 - x2,y2:y1 - y2,:]
-                if mode == 'train':
-                    weight_map = weight_map[x2:x1 - x2,y2:y1 - y2]
+                weight_map = weight_map[x2:x1 - x2,y2:y1 - y2]
             batch.append(img)
             truth_batch.append(truth_img)
-            if mode == 'train':
-                weight_batch.append(weight_map)
+            weight_batch.append(weight_map)
 
             if len(batch) >= batch_size:
                 yield batch,truth_batch,weight_batch

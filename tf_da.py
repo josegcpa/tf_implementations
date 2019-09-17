@@ -48,6 +48,7 @@ class ImageAugmenter:
         return "ImageAugmenter class"
 
     def augment(self,image,*masks):
+        image = tf.image.convert_image_dtype(image,tf.float32)
         image_shape = image.get_shape().as_list()
         image = random_color_transformations(image,
                                              self.brightness_max_delta,
@@ -102,15 +103,30 @@ def random_color_transformations(
     * contrast_params - dictionary with parameters for tf.image.random_contrast
     """
 
-    brightness = lambda x: tf.image.random_brightness(x,
-                                                      brightness_max_delta)
-    saturation = lambda x: tf.image.random_saturation(x,
-                                                      saturation_lower,
-                                                      saturation_upper)
-    hue = lambda x: tf.image.random_hue(x,hue_max_delta)
-    contrast = lambda x: tf.image.random_contrast(x,
-                                                  contrast_lower,
-                                                  contrast_upper)
+    if brightness_max_delta != 0:
+        brightness = lambda x: tf.image.random_brightness(x,
+                                                          brightness_max_delta)
+    else:
+        brightness = lambda x: x
+
+    if saturation_lower - saturation_upper != 0:
+        saturation = lambda x: tf.image.random_saturation(x,
+                                                          saturation_lower,
+                                                          saturation_upper)
+    else:
+        saturation = lambda x: x
+
+    if hue_max_delta != 0:
+        hue = lambda x: tf.image.random_hue(x,hue_max_delta)
+    else:
+        hue = lambda x: x
+
+    if contrast_lower - contrast_upper != 0:
+        contrast = lambda x: tf.image.random_contrast(x,
+                                                      contrast_lower,
+                                                      contrast_upper)
+    else:
+        contrast = lambda x: x
 
     def distort_colors_0(image):
         image = brightness(image)
