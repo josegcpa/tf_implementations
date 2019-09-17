@@ -688,12 +688,12 @@ def generate_images(image_path_list,truth_path,batch_size,crop,
                         truth_img,
                         dsize = (resize_height,resize_width),
                         interpolation = cv2.INTER_NEAREST)
-            weight_map = get_weight_map(truth_img,)
+            weight_map = get_weight_map(truth_img)
             dist_weight_map = get_near_weight_map(truth_img,w0=2,sigma=20)
             weight_map = weight_map + dist_weight_map
             image_list.append(image_to_array(image_path))
             truth_list.append(truth_img)
-            weight_map_list.append(weight_map)
+            weight_map_list.append(weight_map[:,:,np.newaxis])
 
         generator = normal_image_generator(
             image_list,truth_list,weight_map_list,
@@ -723,7 +723,7 @@ def generate_images(image_path_list,truth_path,batch_size,crop,
                     x1,y1 = truth_img.shape[0:2]
                     x2,y2 = (int((x1 - net_x)/2),int((y1 - net_y)/2))
                     truth_img = truth_img[x2:x1 - x2,y2:y1 - y2,:]
-                    weight_map = weight_map[x2:x1 - x2,y2:y1 - y2,:np.newaxis]
+                    weight_map = weight_map[x2:x1 - x2,y2:y1 - y2,:]
                 batch.append(img)
                 truth_batch.append(truth_img)
                 weight_batch.append(weight_map)
@@ -926,10 +926,10 @@ def generate_images_propagation(
 
             weight_map = get_weight_map(truth_img)
             dist_weight_map = get_near_weight_map(truth_img,w0=5,sigma=20)
-            weight_map = weight_map + dist_weight_map
+            weight_map = (weight_map + dist_weight_map) * propa_img
             image_list.append(image_to_array(image_path))
             truth_list.append(truth_img)
-            weight_map_list.append(weight_map * propa_img)
+            weight_map_list.append(weight_map[:,:,np.newaxis])
 
         generator = normal_image_generator(image_list,truth_list,weight_map_list)
 
@@ -949,7 +949,7 @@ def generate_images_propagation(
                     x1,y1 = truth_img.shape[0:2]
                     x2,y2 = (int((x1 - net_x)/2),int((y1 - net_y)/2))
                     truth_img = truth_img[x2:x1 - x2,y2:y1 - y2,:]
-                    weight_map = weight_map[x2:x1 - x2,y2:y1 - y2,np.newaxis]
+                    weight_map = weight_map[x2:x1 - x2,y2:y1 - y2,:]
                 batch.append(img)
                 truth_batch.append(truth_img)
                 weight_batch.append(weight_map)
@@ -994,7 +994,7 @@ def generate_images_propagation(
                 if net_x != None and net_y != None:
                     x1,y1 = weight_map.shape[0:2]
                     x2,y2 = (int((x1 - net_x)/2),int((y1 - net_y)/2))
-                    weight_map = weight_map[x2:x1 - x2,y2:y1 - y2]
+                    weight_map = weight_map[x2:x1 - x2,y2:y1 - y2,:]
                 batch.append(img)
                 weight_batch.append(weight_map)
 
