@@ -542,7 +542,7 @@ def main(mode,
                      i % number_of_steps == 0:
                         l = np.mean(all_losses)
                         all_losses = []
-                        sess.run([l,auc_op,f1score_op],
+                        l,_,_ = sess.run([loss,auc_op,f1score_op],
                                  feed_dict = {
                                      'InputTensor:0':batch,
                                      'TruthTensor:0':truth_batch,
