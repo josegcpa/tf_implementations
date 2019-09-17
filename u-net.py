@@ -513,7 +513,6 @@ def main(mode,
 
                 time_list = []
 
-                all_losses = []
                 all_class_losses = []
                 for i in range(number_of_steps):
                     b = next(image_generator)
@@ -524,7 +523,7 @@ def main(mode,
 
                     a = time.perf_counter()
                     _,l = sess.run(
-                        [train_op,loss],
+                        [train_op,loss,f1score_op,auc_op],
                         feed_dict = {
                             'InputTensor:0':batch,
                             'TruthTensor:0':truth_batch,
@@ -534,15 +533,12 @@ def main(mode,
                         class_l = l[1]
                         l = l[0]
                         all_class_losses.append(class_l)
-                    all_losses.append(l)
                     b = time.perf_counter()
                     time_list.append(b - a)
                     if i % log_every_n_steps == 0 or i == 1 or\
                      i % number_of_steps == 0:
                         b = next(image_generator)
                         batch,truth_batch,weight_batch = b
-                        l = np.mean(all_losses)
-                        all_losses = []
                         l,_,_ = sess.run([loss,auc_op,f1score_op],
                                  feed_dict = {
                                      'InputTensor:0':batch,
@@ -557,6 +553,7 @@ def main(mode,
                             class_l = np.mean(all_class_losses)
                             all_class_losses = []
                             print('\tAux_Node loss = {}'.format(class_l))
+                        sess.run(tf.local_variables_initializer())
 
                     if i % save_summary_steps == 0 or\
                      i % number_of_steps == 0 or i == 1:
