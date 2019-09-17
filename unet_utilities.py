@@ -638,7 +638,6 @@ def generate_images(image_path_list,truth_path,batch_size,crop,
     """
 
 
-
     if mode == 'train':
         image_list = []
         truth_list = []
@@ -821,9 +820,8 @@ def generate_images(image_path_list,truth_path,batch_size,crop,
         if len(batch) > 0:
             yield batch,batch_paths
 
-
     elif mode == 'tumble_predict':
-        genereator = tumble_image_generator(image_path_list)
+        generator = tumble_image_generator(image_path_list)
         batch_paths = []
         for img,img_path in generator:
             if len(batch) >= batch_size:
@@ -873,11 +871,10 @@ def generate_images(image_path_list,truth_path,batch_size,crop,
             if len(batch) > 0:
                 yield batch,batch_paths,batch_coord,batch_shape
 
-# TODO: rewrite this for Philip project
 def generate_images_propagation(
     image_path_list,truth_path,propagation_path,
     batch_size=4,crop=False,
-    chances = [0,0,0],net_x = None,net_y = None,
+    net_x = None,net_y = None,
     input_height = 256,input_width = 256,resize = False,
     padding = 'VALID',truth_only = False,weight_maps = True):
     """
@@ -902,65 +899,110 @@ def generate_images_propagation(
     * mode - algorithm mode [train].
     """
 
-    a = True
-    batch = []
-    truth_batch = []
+    if mode == 'train' or mode == 'test':
+        image_list = []
+        truth_list = []
+        weight_map_list = []
 
-    image_list = []
-    truth_list = []
-    weight_map_list = []
+        for i,image_path in enumerate(image_path_list):
+            class_array = np.array([-1 for i in range(n_classes)])
+            if i % 5 == 0: print(i)
+            image_name = image_path.split(os.sep)[-1]
+            truth_image_path = os.path.join(truth_path,image_name)
+            propagation_image_path = os.path.join(propagation_path,image_name)
+            truth_img = image_to_array(truth_image_path)
+            propa_img = image_to_array(propagation_image_path)
 
-    for i,image_path in enumerate(image_path_list):
-        class_array = np.array([-1 for i in range(n_classes)])
-        if i % 5 == 0: print(i)
-        image_name = image_path.split(os.sep)[-1]
-        truth_image_path = os.path.join(truth_path,image_name)
-        propagation_image_path = os.path.join(propagation_path,image_name)
-        truth_img = image_to_array(truth_image_path)
-        propa_img = image_to_array(propagation_image_path)
+            if len(truth_img.shape) == 3:
+                truth_img = np.mean(truth_img,axis=2)
 
-        if len(truth_img.shape) == 3:
-            truth_img = np.mean(truth_img,axis=2)
+            if len(propa_img.shape) == 3:
+                propa_img = np.mean(propa_img,axis=2)
 
-        if len(propa_img.shape) == 3:
-            propa_img = np.mean(propa_img,axis=2)
+            truth_img = np.where(truth_img > 0.5,1.,0.)
+            truth_img = np.stack([1. - truth_img,truth_img],axis=2)
 
-        truth_img = np.where(truth_img > 0.5,1.,0.)
-        truth_img = np.stack([1. - truth_img,truth_img],axis=2)
+            propa_img = np.where(propa_img > 0,1.,0.)
 
-        propa_img = np.where(propa_img > 0,1.,0.)
+            weight_map = get_weight_map(truth_img)
+            dist_weight_map = get_near_weight_map(truth_img,w0=5,sigma=20)
+            weight_map = weight_map + dist_weight_map
+            image_list.append(image_to_array(image_path))
+            truth_list.append(truth_img)
+            weight_map_list.append(weight_map * propa_img)
 
-        weight_map = get_weight_map(truth_img)
-        dist_weight_map = get_near_weight_map(truth_img,w0=5,sigma=20)
-        weight_map = weight_map + dist_weight_map
-        image_list.append(image_to_array(image_path))
-        truth_list.append(truth_img)
-        weight_map_list.append(weight_map * propa_img)
+        generator = normal_image_generator(image_list,truth_list,weight_map_list)
 
-    generator = normal_image_generator(image_list,truth_list,weight_map_list)
+        a = True
+        batch = []
+        truth_batch = []
+        weight_batch = []
+        while a == True:
+            for element in generator:
+                img,truth_img,weight_map,_ = element
 
-    weight_batch = []
-    while a == True:
-        for element in generator:
-            img,truth_img,weight_map,_ = element
-            #Normalize data between 0 - 1
-            if len(batch) >= batch_size:
-                batch = []
-                truth_batch = []
-                weight_batch = []
-            if net_x != None and net_y != None:
-                x1,y1 = truth_img.shape[0:2]
-                x2,y2 = (int((x1 - net_x)/2),int((y1 - net_y)/2))
-                truth_img = truth_img[x2:x1 - x2,y2:y1 - y2,:]
-                weight_map = weight_map[x2:x1 - x2,y2:y1 - y2]
-            batch.append(img)
-            truth_batch.append(truth_img)
-            weight_batch.append(weight_map)
+                if len(batch) >= batch_size:
+                    batch = []
+                    truth_batch = []
+                    weight_batch = []
+                if net_x != None and net_y != None:
+                    x1,y1 = truth_img.shape[0:2]
+                    x2,y2 = (int((x1 - net_x)/2),int((y1 - net_y)/2))
+                    truth_img = truth_img[x2:x1 - x2,y2:y1 - y2,:]
+                    weight_map = weight_map[x2:x1 - x2,y2:y1 - y2]
+                batch.append(img)
+                truth_batch.append(truth_img)
+                weight_batch.append(weight_map)
 
-            if len(batch) >= batch_size:
+                if len(batch) >= batch_size:
+                    yield batch,truth_batch,weight_batch
+            if len(batch) > 0:
                 yield batch,truth_batch,weight_batch
-        if len(batch) > 0:
-            yield batch,truth_batch,weight_batch
+
+    if mode == 'predict':
+        a = True
+
+        image_list = []
+        weight_map_list = []
+
+        for i,image_path in enumerate(image_path_list):
+            class_array = np.array([-1 for i in range(n_classes)])
+            if i % 5 == 0: print(i)
+            image_name = image_path.split(os.sep)[-1]
+            propagation_image_path = os.path.join(propagation_path,image_name)
+            propa_img = image_to_array(propagation_image_path)
+
+            if len(propa_img.shape) == 3:
+                propa_img = np.mean(propa_img,axis=2)
+
+            propa_img = np.where(propa_img > 0,1.,0.)
+
+            image_list.append(image_to_array(image_path))
+            weight_map_list.append(propa_img)
+
+        generator = normal_image_generator(image_list,weight_map_list)
+
+        batch = []
+        weight_batch = []
+        while a == True:
+            for element in generator:
+                img,weight_map,_ = element
+
+                if len(batch) >= batch_size:
+                    batch = []
+                    weight_batch = []
+                if net_x != None and net_y != None:
+                    x1,y1 = weight_map.shape[0:2]
+                    x2,y2 = (int((x1 - net_x)/2),int((y1 - net_y)/2))
+                    weight_map = weight_map[x2:x1 - x2,y2:y1 - y2]
+                batch.append(img)
+                weight_batch.append(weight_map)
+
+                if len(batch) >= batch_size:
+                    yield batch,weight_batch
+            if len(batch) > 0:
+                yield batch,weight_batch
+
 
 def classification_generator(image_path_list,classification_list,
                              chances = [0,0,0],

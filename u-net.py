@@ -524,9 +524,8 @@ def main(mode,
                     weight_batch = np.expand_dims(weight_batch,-1)
 
                     a = time.perf_counter()
-                    _,l,_,_ = sess.run(
-                        [train_op,loss,
-                         auc_op,f1score_op],
+                    _,l = sess.run(
+                        [train_op,loss],
                         feed_dict = {
                             'InputTensor:0':batch,
                             'TruthTensor:0':truth_batch,
@@ -543,7 +542,12 @@ def main(mode,
                      i % number_of_steps == 0:
                         l = np.mean(all_losses)
                         all_losses = []
-                        f1,auc_ = sess.run([f1score,auc])
+                        sess.run([l,auc_op,f1score_op],
+                                 feed_dict = {
+                                     'InputTensor:0':batch,
+                                     'TruthTensor:0':truth_batch,
+                                     'WeightsTensor:0':weight_batch})
+                        f1,auc_,l = sess.run([f1score,auc,loss])
                         log_write_print(log_file,
                                         LOG.format(i,l,np.mean(time_list),
                                                    f1,auc_))
