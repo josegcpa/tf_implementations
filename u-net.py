@@ -555,7 +555,7 @@ def main(mode,
                             print('\tAux_Node loss = {}'.format(class_l))
                         sess.run(tf.local_variables_initializer())
 
-                    if i % save_summary_steps == 0 or or i == 1:
+                    if i % save_summary_steps == 0 or i == 1:
                         summary = sess.run(
                             summary_op,
                             feed_dict = {
@@ -566,7 +566,7 @@ def main(mode,
                         log_write_print(
                             log_file,SUMMARY.format(i,save_summary_folder))
 
-                        if i % save_checkpoint_steps == 0 or or i == 1:
+                        if i % save_checkpoint_steps == 0 or i == 1:
                             saver.save(sess, CHECKPOINT_PATH,global_step=i)
                             log_write_print(log_file,
                                             CHECKPOINT.format(i,
