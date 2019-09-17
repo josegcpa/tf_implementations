@@ -1066,7 +1066,7 @@ def classification_generator(image_path_list,classification_list,
 
             if len(batch) >= batch_size:
                 yield batch,classification_batch
-        print(a)
+
         if len(batch) > 0:
             yield batch,classification_batch
         if mode == 'test':

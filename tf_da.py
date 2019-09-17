@@ -230,7 +230,6 @@ def random_rotation(
         image = tf.cond(flip_lr_prob,
                         lambda: tf.image.flip_left_right(image),
                         lambda: image)
-        print(masks)
         masks = [
             tf.cond(flip_lr_prob,
                     lambda: tf.image.flip_left_right(m),
@@ -303,7 +302,6 @@ def gaussian_blur(
 
     with tf.variable_scope('RandomRot') and tf.name_scope('RandomRot'):
         image_shape = image.get_shape().as_list()
-        print(image_shape)
         gaussian_filter = gaussian_kernel(size,mean,std)
         gaussian_filter = tf.stack([gaussian_filter for _ in range(3)],axis=-1)
         gaussian_filter = tf.stack([gaussian_filter for _ in range(3)],axis=-1)
