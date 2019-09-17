@@ -102,6 +102,8 @@ class VAE:
                  save_checkpoint_steps = 100,
                  save_summary_folder = '/tmp/summary',
                  save_summary_steps = 100,
+                 #Data augmentation
+                 data_augmentation_params={},
                  #Testing/Prediction
                  checkpoint_path = None,
                  save_predictions_path = './predictions.pkl',
@@ -136,6 +138,8 @@ class VAE:
         self.save_checkpoint_steps = save_checkpoint_steps
         self.save_summary_folder = save_summary_folder
         self.save_summary_steps = save_summary_steps
+        #Data augmentation
+        self.data_augmentation_params = data_augmentation_params
         #Testing/Prediction
         self.checkpoint_path = checkpoint_path
         self.save_predictions_path = save_predictions_path
@@ -600,9 +604,10 @@ class VAE:
             return tf.image.convert_image_dtype(image, dtype=tf.float32)
 
         if self.data_augmentation == True:
-            image_augmenter = tf_da.ImageAugmenter(blur_probability=0)
+            image_augmenter = tf_da.ImageAugmenter(
+                **self.data_augmentation_params)
             self.inputs = tf.map_fn(
-                pp_image,
+                lambda x: image_augmenter.augment(x),
                 self.inputs,
                 dtype = tf.float32
             )
@@ -1047,6 +1052,37 @@ if __name__ == '__main__':
                         action = 'store',type = int,
                         default = 100,
                         help = 'Save summary every n steps.')
+
+    #Data augmentation
+    for arg in [
+        ['brightness_max_delta',16. / 255.,float],
+        ['saturation_lower',0.8,float],
+        ['saturation_upper',1.2,float],
+        ['hue_max_delta',0.2,float],
+        ['contrast_lower',0.8,float],
+        ['contrast_upper',1.2,float],
+        ['salt_prob',0.1,float],
+        ['pepper_prob',0.1,float],
+        ['noise_stddev',0.05,float],
+        ['blur_probability',0.1,float],
+        ['blur_size',3,int],
+        ['blur_mean',0,float],
+        ['blur_std',0.05,float],
+        ['discrete_rotation',True,'store_true'],
+        ['continuous_rotation',True,'store_true'],
+        ['min_jpeg_quality',30,int],
+        ['max_jpeg_quality',70,int]
+    ]:
+        print(arg[0])
+        if arg[2] != 'store_true':
+            parser.add_argument('--{}'.format(arg[0]),dest=arg[0],
+                                action='store',type=arg[2],
+                                default=arg[1])
+        else:
+            parser.add_argument('--{}'.format(arg[0]),dest=arg[0],
+                                action='store_true',
+                                default=False)
+
     #Testing/prediction
     parser.add_argument('--checkpoint_path',
                         dest = 'checkpoint_path',
@@ -1098,6 +1134,27 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
+    #Data augmentation
+    data_augmentation_params = {
+        'brightness_max_delta':args.brightness_max_delta,
+        'saturation_lower':args.saturation_lower,
+        'saturation_upper':args.saturation_upper,
+        'hue_max_delta':args.hue_max_delta,
+        'contrast_lower':args.contrast_lower,
+        'contrast_upper':args.contrast_upper,
+        'salt_prob':args.salt_prob,
+        'pepper_prob':args.pepper_prob,
+        'noise_stddev':args.noise_stddev,
+        'blur_probability':args.blur_probability,
+        'blur_size':args.blur_size,
+        'blur_mean':args.blur_mean,
+        'blur_std':args.blur_std,
+        'discrete_rotation':args.discrete_rotation,
+        'continuous_rotation':args.continuous_rotation,
+        'min_jpeg_quality':args.min_jpeg_quality,
+        'max_jpeg_quality':args.max_jpeg_quality
+    }
+
     vae = VAE(mode=args.mode,
               random_seed=args.random_seed,
               #Images
@@ -1121,6 +1178,8 @@ if __name__ == '__main__':
               save_checkpoint_steps=args.save_checkpoint_steps,
               save_summary_folder=args.save_summary_folder,
               save_summary_steps=args.save_summary_steps,
+              #Data augmentation
+              data_augmentation_params=data_augmentation_params,
               #Testing/prediction
               checkpoint_path=args.checkpoint_path,
               save_predictions_path=args.save_predictions_path,
