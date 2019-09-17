@@ -182,7 +182,7 @@ def main(mode,
         tf_shape = [None,net_x,net_y,n_classes]
         truth = tf.placeholder(tf.float32, tf_shape,
                                name='TruthTensor')
-        weights = tf.placeholder(tf.float32, [None,net_x,net_y],
+        weights = tf.placeholder(tf.float32, [None,net_x,net_y,1],
                                  name='WeightsTensor')
         crop = True
 
@@ -194,7 +194,7 @@ def main(mode,
             tf_shape = [None,input_height,input_width,n_classes]
         truth = tf.placeholder(tf.float32, tf_shape,
                                name='TruthTensor')
-        weights = tf.placeholder(tf.float32, [None,input_height,input_width],
+        weights = tf.placeholder(tf.float32, [None,input_height,input_width,1],
                                  name='WeightsTensor')
         crop = False
 
@@ -521,6 +521,7 @@ def main(mode,
                     batch = np.stack(batch,0)
                     truth_batch = np.stack(truth_batch,0)
                     weight_batch = np.stack(weight_batch,0)
+                    weight_batch = np.expand_dims(weight_batch,-1)
 
                     a = time.perf_counter()
                     _,l,_,_ = sess.run(
