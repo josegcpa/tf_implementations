@@ -521,7 +521,6 @@ def main(mode,
                     batch = np.stack(batch,0)
                     truth_batch = np.stack(truth_batch,0)
                     weight_batch = np.stack(weight_batch,0)
-                    weight_batch = np.expand_dims(weight_batch,-1)
 
                     a = time.perf_counter()
                     _,l = sess.run(

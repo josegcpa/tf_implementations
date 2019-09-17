@@ -723,7 +723,7 @@ def generate_images(image_path_list,truth_path,batch_size,crop,
                     x1,y1 = truth_img.shape[0:2]
                     x2,y2 = (int((x1 - net_x)/2),int((y1 - net_y)/2))
                     truth_img = truth_img[x2:x1 - x2,y2:y1 - y2,:]
-                    weight_map = weight_map[x2:x1 - x2,y2:y1 - y2]
+                    weight_map = weight_map[x2:x1 - x2,y2:y1 - y2,:np.newaxis]
                 batch.append(img)
                 truth_batch.append(truth_img)
                 weight_batch.append(weight_map)
@@ -949,7 +949,7 @@ def generate_images_propagation(
                     x1,y1 = truth_img.shape[0:2]
                     x2,y2 = (int((x1 - net_x)/2),int((y1 - net_y)/2))
                     truth_img = truth_img[x2:x1 - x2,y2:y1 - y2,:]
-                    weight_map = weight_map[x2:x1 - x2,y2:y1 - y2]
+                    weight_map = weight_map[x2:x1 - x2,y2:y1 - y2,np.newaxis]
                 batch.append(img)
                 truth_batch.append(truth_img)
                 weight_batch.append(weight_map)
