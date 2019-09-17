@@ -548,7 +548,7 @@ def main(mode,
                                      'InputTensor:0':batch,
                                      'TruthTensor:0':truth_batch,
                                      'WeightsTensor:0':weight_batch})
-                        f1,auc = sess.run([f1score,auc])
+                        f1,auc_ = sess.run([f1score,auc])
                         log_write_print(log_file,
                                         LOG.format(i,l,np.mean(time_list),
                                                    f1,auc_))
