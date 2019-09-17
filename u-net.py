@@ -559,6 +559,8 @@ def main(mode,
 
                     if i % save_summary_steps == 0 or\
                      i % number_of_steps == 0 or i == 1:
+                        b = next(image_generator)
+                        batch,truth_batch,weight_batch = b
                         summary = sess.run(
                             summary_op,
                             feed_dict = {
