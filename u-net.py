@@ -540,6 +540,8 @@ def main(mode,
                     time_list.append(b - a)
                     if i % log_every_n_steps == 0 or i == 1 or\
                      i % number_of_steps == 0:
+                        b = next(image_generator)
+                        batch,truth_batch,weight_batch = b
                         l = np.mean(all_losses)
                         all_losses = []
                         l,_,_ = sess.run([loss,auc_op,f1score_op],
@@ -547,7 +549,7 @@ def main(mode,
                                      'InputTensor:0':batch,
                                      'TruthTensor:0':truth_batch,
                                      'WeightsTensor:0':weight_batch})
-                        f1,auc_,l = sess.run([f1score,auc,loss])
+                        f1,auc = sess.run([f1score,auc])
                         log_write_print(log_file,
                                         LOG.format(i,l,np.mean(time_list),
                                                    f1,auc_))
@@ -559,8 +561,6 @@ def main(mode,
 
                     if i % save_summary_steps == 0 or\
                      i % number_of_steps == 0 or i == 1:
-                        b = next(image_generator)
-                        batch,truth_batch,weight_batch = b
                         summary = sess.run(
                             summary_op,
                             feed_dict = {
