@@ -182,7 +182,7 @@ def main(mode,
         tf_shape = [None,net_x,net_y,n_classes]
         truth = tf.placeholder(tf.float32, tf_shape,
                                name='TruthTensor')
-        weights = tf.placeholder(tf.float32, [None,net_x,net_y,1],
+        weights = tf.placeholder(tf.float32, [None,net_x,net_y],
                                  name='WeightsTensor')
         crop = True
 
@@ -194,7 +194,7 @@ def main(mode,
             tf_shape = [None,input_height,input_width,n_classes]
         truth = tf.placeholder(tf.float32, tf_shape,
                                name='TruthTensor')
-        weights = tf.placeholder(tf.float32, [None,input_height,input_width,1],
+        weights = tf.placeholder(tf.float32, [None,input_height,input_width],
                                  name='WeightsTensor')
         crop = False
 
