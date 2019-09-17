@@ -522,7 +522,7 @@ def main(mode,
                     weight_batch = np.stack(weight_batch,0)
 
                     a = time.perf_counter()
-                    _,l = sess.run(
+                    _,l,_,_ = sess.run(
                         [train_op,loss,f1score_op,auc_op],
                         feed_dict = {
                             'InputTensor:0':batch,
