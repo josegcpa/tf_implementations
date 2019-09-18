@@ -56,6 +56,8 @@ class ImageAugmenter:
 
         image,masks = elastic_transform(image,*masks)
 
+        print(image,masks)
+
         image_shape = image.get_shape().as_list()
         image = random_color_transformations(image,
                                              self.brightness_max_delta,
@@ -339,7 +341,7 @@ def elastic_transform(image,*masks):
         out = self.et(image=image,masks=masks)
         out = [image,*masks]
         return out
-
+    print(image,masks)
     shapes = [x.get_shape().as_list() for x in [image,*masks]]
 
     out = tf.map_fn(
