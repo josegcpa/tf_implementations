@@ -213,6 +213,7 @@ def main(mode,
             [inputs,truth,weights],
             (tf.float32,tf.float32,tf.float32)
             )
+        print(inputs)
         et = ElasticTransform(sigma=30,alpha_affine=30,p=0.7)
         inputs,mask,weights = tf.py_func(
             lambda x,y,z: unpack_et(image=x,masks=[y,z]),
@@ -225,7 +226,6 @@ def main(mode,
         inputs = tf.image.convert_image_dtype(inputs,tf.float32)
 
     weights = tf.squeeze(weights,axis=-1)
-
 
     network,endpoints,classifications = u_net(
         inputs,
