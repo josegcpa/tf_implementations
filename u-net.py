@@ -199,7 +199,7 @@ def main(mode,
         crop = False
 
     if is_training == True:
-        def unpack_et(images,masks):
+        def unpack_et(image,masks):
             out = et(image=image,masks=masks)
             out = [image,*masks]
             return out
