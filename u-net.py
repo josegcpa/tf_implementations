@@ -216,9 +216,9 @@ def main(mode,
 
         et = ElasticTransform(sigma=30,alpha_affine=30,p=0.7)
         inputs,mask,weights = tf.map_fn(
-            lambda x,y,z: tf.py_func(
+            lambda i,m,t: tf.py_func(
                 lambda x,y,z: unpack_et(image=x,masks=[y,z]),
-                [x,y,z],
+                [i,m,t],
                 Tout=[tf.float32,tf.float32,tf.float32]),
             [inputs,mask,weights],
             (tf.float32,tf.float32,tf.float32)
