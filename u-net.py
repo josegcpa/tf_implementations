@@ -192,7 +192,6 @@ def main(mode,
         generator_params={
             'image_path_list':image_path_list,
             'truth_path':truth_dir,
-            'batch_size':batch_size,
             'input_height':input_height,
             'input_width':input_width,
             'n_classes':n_classes,
@@ -768,17 +767,6 @@ def main(mode,
                         os.makedirs(prediction_output)
                     except:
                         pass
-
-                image_generator = generate_images(
-                    image_path_list,
-                    truth_dir,
-                    crop = False,
-                    batch_size = batch_size,
-                    input_height = input_height,
-                    input_width = input_width,
-                    padding = padding,
-                    mode = 'large_predict'
-                )
 
                 sess.run(init)
                 trained_network = saver.restore(sess,checkpoint_path)
