@@ -604,7 +604,7 @@ def remap_tiles(mask,division_mask,h_1,w_1,tile):
     division_mask[h_1:h_1 + x,w_1:w_1 + y,:] += np.ones(tile.shape)
     return mask,division_mask
 
-def generate_images(image_path_list,truth_path,crop,
+def generate_images(image_path_list,truth_path,
                     input_height = 256,input_width = 256,
                     padding = 'VALID',n_classes = 2,
                     truth_only = False,
@@ -771,7 +771,7 @@ def generate_images(image_path_list,truth_path,crop,
 
 def generate_images_propagation(
     image_path_list,truth_path,propagation_path,
-    batch_size=4,crop=False,
+    batch_size=4,
     net_x = None,net_y = None,
     input_height = 256,input_width = 256,resize = False,
     padding = 'VALID',truth_only = False,weight_maps = True):
@@ -782,15 +782,8 @@ def generate_images_propagation(
     * image_path_list - a list of image paths
     * truth_path - a list of ground truth image paths
     * batch_size - the size of the batch
-    * crop - whether the ground truth image should be cropped or not
-    * chances - chances for the realtime_image_augmentation [[0,0,0]]
-    * net_x - output height for the network [None]
-    * net_y - output width for the network [None]
     * input_height - input height for the network [256]
     * input_width - input width for the network [256]
-    * resize - whether the input should be resized or not [False]
-    * resize_height - height of the resized input [256]
-    * resize_width - width of the resized input [256]
     * padding - whether VALID or SAME padding should be used ['VALID']
     * n_classes - no. of classes [2]
     * truth_only - whether only positive images should be used [False]
