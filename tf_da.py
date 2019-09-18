@@ -44,7 +44,6 @@ class ImageAugmenter:
         self.discrete_rotation = discrete_rotation
         self.continuous_rotation = continuous_rotation
         self.min_jpeg_quality = min_jpeg_quality
-
         self.max_jpeg_quality = max_jpeg_quality
 
     def __str__(self):
@@ -54,9 +53,6 @@ class ImageAugmenter:
         image = tf.image.convert_image_dtype(image,tf.float32)
 
         image,masks = elastic_transform(image,*masks)
-
-        print(image)
-        print(masks)
 
         image_shape = image.get_shape().as_list()
         image = random_color_transformations(image,
@@ -339,11 +335,12 @@ def elastic_transform(image,*masks):
 
     def unpack_et(image,masks):
         out = et(image=image,masks=masks)
-        out = [image,*masks]
+        [image,*masks] = out
+        print(image.shape,(x.shape for x in masks))
         return out
 
     et = ElasticTransform(sigma=30,alpha_affine=30,p=0.7)
-    
+
     shapes = [x.get_shape().as_list() for x in [image,*masks]]
 
     out = tf.py_func(
