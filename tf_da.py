@@ -339,7 +339,7 @@ def elastic_transform(image,*masks):
         out = self.et(image=image,masks=masks)
         out = [image,*masks]
         return out
-
+    print(image,masks)
     shapes = [x.get_shape().as_list() for x in [image,*masks]]
 
     out = tf.map_fn(
