@@ -199,7 +199,7 @@ def main(mode,
         crop = False
 
     if is_training == True:
-        def unpack_et(image,masks):
+        def unpack_et(images,masks):
             out = et(image=image,masks=masks)
             out = [image,*masks]
             return out
@@ -215,10 +215,14 @@ def main(mode,
         shapes = [x.get_shape().as_list() for x in [inputs,truth,weights]]
 
         et = ElasticTransform(sigma=30,alpha_affine=30,p=0.7)
-        inputs,mask,weights = tf.py_func(
-            lambda x,y,z: unpack_et(image=x,masks=[y,z]),
+        inputs,mask,weights = tf.map_fn(
+            lambda x,y,z: tf.py_func(
+                lambda x,y,z: unpack_et(image=x,masks=[y,z]),
+                [inputs,truth,weights],
+                Tout=[tf.float32,tf.float32,tf.float32]),
             [inputs,truth,weights],
-            Tout=[tf.float32,tf.float32,tf.float32])
+            (tf.float32,tf.float32,tf.float32)
+            )
 
         inputs = tf.reshape(inputs,[-1,*shapes[0][1:]])
         mask = tf.reshape(mask,[-1,*shapes[1][1:]])
