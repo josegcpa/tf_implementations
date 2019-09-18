@@ -530,12 +530,6 @@ def main(mode,
 
                 all_class_losses = []
                 for i in range(number_of_steps):
-                    b = next(image_generator)
-                    batch,truth_batch,weight_batch = b
-                    batch = np.stack(batch,0)
-                    truth_batch = np.stack(truth_batch,0)
-                    weight_batch = np.stack(weight_batch,0)
-
                     a = time.perf_counter()
                     _,l,_,_ = sess.run(
                         [train_op,loss,f1score_op,auc_op])
@@ -548,8 +542,6 @@ def main(mode,
                     time_list.append(b - a)
                     if i % log_every_n_steps == 0 or i == 1 or\
                      i % number_of_steps == 0:
-                        b = next(image_generator)
-                        batch,truth_batch,weight_batch = b
                         l,_,_ = sess.run([loss,auc_op,f1score_op])
                         f1,auc_ = sess.run([f1score,auc])
                         log_write_print(log_file,
