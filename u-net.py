@@ -219,6 +219,7 @@ def main(mode,
             lambda x,y,z: unpack_et(image=x,masks=[y,z]),
             [inputs,truth,weights],
             Tout=[tf.float32,tf.float32,tf.float32])
+        print(shapes)
         inputs = tf.reshape(inputs,shapes[0])
         mask = tf.reshape(mask,shapes[1])
         weights = tf.reshape(weights,shapes[2])
