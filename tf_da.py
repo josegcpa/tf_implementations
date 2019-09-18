@@ -344,14 +344,10 @@ def elastic_transform(image,*masks):
 
     shapes = [x.get_shape().as_list() for x in [image,*masks]]
 
-    out = tf.map_fn(
-        lambda l: tf.py_func(
-            lambda x: unpack_et(image=x[0],masks=x[1:]),
-            l,
-            Tout=[tf.float32,*[tf.float32 for _ in masks]]),
-        [image,*masks],
-        [tf.float32,*[tf.float32 for _ in masks]]
-        )
+    out = tf.py_func(
+        lambda x: unpack_et(image=x[0],masks=x[1:]),
+        l,
+        Tout=[tf.float32,*[tf.float32 for _ in masks]])
 
     out = [tf.reshape(out[i],shapes[i]) for i in range(len(out))]
     image = out[0]
