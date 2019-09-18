@@ -26,7 +26,10 @@ class ImageAugmenter:
                  discrete_rotation=True,
                  continuous_rotation=True,
                  min_jpeg_quality=30,
-                 max_jpeg_quality=70):
+                 max_jpeg_quality=70,
+                 elastic_transform_sigma=30,
+                 elastic_transform_alpha=30,
+                 elastic_transform_p=0.7):
 
         self.brightness_max_delta = brightness_max_delta
         self.saturation_lower = saturation_lower
@@ -45,6 +48,9 @@ class ImageAugmenter:
         self.continuous_rotation = continuous_rotation
         self.min_jpeg_quality = min_jpeg_quality
         self.max_jpeg_quality = max_jpeg_quality
+        self.elastic_transform_sigma = elastic_transform_sigma
+        self.elastic_transform_alpha = elastic_transform_alpha
+        self.elastic_transform_p = elastic_transform_p
 
     def __str__(self):
         return "ImageAugmenter class"
@@ -325,6 +331,11 @@ def random_jpeg_quality(image,
                         max_jpeg_quality=70):
     """
     Function to randomly alter JPEG quality.
+
+    Parameters:
+    * image - three channel image (H,W,3)
+    * min_jpeg_quality - minimum JPEG quality
+    * max_jpeg_quality - maximum JPEG quality
     """
 
     return tf.image.random_jpeg_quality(image,
@@ -332,14 +343,19 @@ def random_jpeg_quality(image,
                                         max_jpeg_quality)
 
 def elastic_transform(image,*masks):
-
+    """
+    Applies elastic distortion (elastic transform) to images and their
+    respective masks.
+    """
     def unpack_et(image,masks):
         out = et(image=image,masks=masks)
         image,masks = out['image'],out['masks']
         out = [image,*masks]
         return out
 
-    et = ElasticTransform(sigma=30,alpha_affine=30,p=0.7)
+    et = ElasticTransform(sigma=self.elastic_transform_sigma,
+                          alpha_affine=self.elastic_transform_alpha,
+                          p=self.elastic_transform_p)
 
     shapes = [x.get_shape().as_list() for x in [image,*masks]]
 
