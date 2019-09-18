@@ -220,9 +220,9 @@ def main(mode,
             [inputs,truth,weights],
             Tout=[tf.float32,tf.float32,tf.float32])
         print(shapes)
-        inputs = tf.reshape(inputs,shapes[0])
-        mask = tf.reshape(mask,shapes[1])
-        weights = tf.reshape(weights,shapes[2])
+        inputs = tf.reshape(inputs,[-1,*shapes[0][1:]])
+        mask = tf.reshape(mask,[-1,*shapes[0][1:]])
+        weights = tf.reshape(weights,[-1,*shapes[0][1:]])
         print(inputs,mask,weights)
     else:
         inputs = tf.image.convert_image_dtype(inputs,tf.float32)
