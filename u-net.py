@@ -163,7 +163,7 @@ def main(mode,
 
     if mode == 'train':
         is_training = True
-        output_types = (tf.uint8,tf.float32,tf.float32,tf.int32)
+        output_types = (tf.uint8,tf.float32,tf.float32)
         output_shapes = (
             [input_height,input_width,3],
             [input_height,input_width,n_classes],
@@ -172,7 +172,7 @@ def main(mode,
             )
     elif mode == 'test':
         is_training = False
-        output_types = (tf.uint8,tf.float32,tf.int32)
+        output_types = (tf.uint8,tf.float32)
         output_shapes = (
             [input_height,input_width,3],
             [input_height,input_width,n_classes],
