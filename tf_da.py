@@ -56,7 +56,8 @@ class ImageAugmenter:
 
         image,masks = elastic_transform(image,*masks)
 
-        print(image,masks)
+        print(image)
+        print(masks)
 
         image_shape = image.get_shape().as_list()
         image = random_color_transformations(image,
