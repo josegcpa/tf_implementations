@@ -6,7 +6,6 @@ import tifffile as tiff
 import tensorflow as tf
 from scipy.spatial import distance
 from PIL import Image
-from albumentations import ElasticTransform
 
 import tf_da
 
@@ -705,16 +704,11 @@ def generate_images(image_path_list,truth_path,batch_size,crop,
         truth_batch = []
         weight_batch = []
 
-        #et = ElasticTransform(sigma=30,alpha_affine=30,p=0.7)
 
         while True:
             for element in generator:
                 img,truth_img,weight_map,_ = element
-                """
-                out = et(image=img,
-                         masks=[truth_img,weight_map])
-                img,(truth_img,weight_map) = out['image'],out['masks']
-                """
+
                 if len(batch) >= batch_size:
                     batch = []
                     truth_batch = []

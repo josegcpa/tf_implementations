@@ -1,6 +1,8 @@
 from math import pi
 import tensorflow as tf
 
+from albumentations import ElasticTransform
+
 """
 Set of functions used to perform data augmentation on tf.
 """
@@ -42,13 +44,16 @@ class ImageAugmenter:
         self.discrete_rotation = discrete_rotation
         self.continuous_rotation = continuous_rotation
         self.min_jpeg_quality = min_jpeg_quality
+
         self.max_jpeg_quality = max_jpeg_quality
+        self.et = ElasticTransform(sigma=30,alpha_affine=30,p=0.7)
 
     def __str__(self):
         return "ImageAugmenter class"
 
     def augment(self,image,*masks):
         image = tf.image.convert_image_dtype(image,tf.float32)
+
         image_shape = image.get_shape().as_list()
         image = random_color_transformations(image,
                                              self.brightness_max_delta,
@@ -318,7 +323,34 @@ def gaussian_blur(
 def random_jpeg_quality(image,
                         min_jpeg_quality=30,
                         max_jpeg_quality=70):
+    """
+    Function to randomly alter JPEG quality.
+    """
 
     return tf.image.random_jpeg_quality(image,
                                         min_jpeg_quality,
                                         max_jpeg_quality)
+
+def elastic_transform(image,*masks):
+
+    def unpack_et(image,masks):
+        out = self.et(image=image,masks=masks)
+        out = [image,*masks]
+        return out
+
+    shapes = [x.get_shape().as_list() for x in [inputs,*masks]]
+
+    out = tf.map_fn(
+        lambda l: tf.py_func(
+            lambda x: unpack_et(image=x[0],masks=x[1:]),
+            l,
+            Tout=[tf.float32,*[tf.float32 for _ in masks]]),
+        [inputs,*masks],
+        [tf.float32,*[tf.float32 for _ in masks]]
+        )
+
+    out = [tf.reshape(out[i],[-1,*shapes[i][1:]]) for i in range(len(out))]
+    image = out[0]
+    masks = out[1:]
+
+    return out, masks
