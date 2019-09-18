@@ -583,21 +583,6 @@ def main(mode,
 
             print('Testing...')
             with tf.Session() as sess:
-                image_generator = generate_images(
-                    image_path_list,
-                    truth_dir,
-                    batch_size = batch_size,
-                    crop = crop,
-                    net_x = net_x,
-                    net_y = net_y,
-                    input_height = input_height,
-                    input_width = input_width,
-                    resize = resize,
-                    resize_height = resize_height,
-                    resize_width = resize_width,
-                    n_classes = n_classes,
-                    mode = 'test'
-                    )
 
                 sess.run(init)
                 trained_network = saver.restore(sess,checkpoint_path)
@@ -612,11 +597,12 @@ def main(mode,
                     batch = np.stack(batch,0)
                     truth_batch = np.stack(truth_batch,0)
 
+
                     a = time.perf_counter()
+                    n_images = sess.run([network]).shape[0]
                     b = time.perf_counter()
                     t_image = (b - a)/n_images
                     time_list.append(t_image)
-
                     sess.run([auc_op,f1score_op,m_iou_op,
                               auc_batch_op,f1score_batch_op,m_iou_batch_op])
 
@@ -628,8 +614,6 @@ def main(mode,
                     all_auc.append(auc_)
                     all_m_iou.append(iou)
 
-                    output = LOG.format(n_images,b - a,t_image,f1,auc_,iou)
-                    #log_write_print(log_file,output)
                     tf.initializers.variables(var_list=batch_vars)
 
                 f1score_,auc_,iou = sess.run([f1score,auc,m_iou])
@@ -677,33 +661,16 @@ def main(mode,
                 except:
                     pass
 
-                image_generator = generate_images(
-                    image_path_list,
-                    truth_dir,
-                    batch_size=batch_size,
-                    crop=crop,
-                    net_x=net_x,
-                    net_y=net_y,
-                    input_height=input_height,
-                    input_width=input_width,
-                    resize=resize,
-                    resize_height=resize_height,
-                    resize_width=resize_width,
-                    n_classes=n_classes,
-                    mode='predict'
-                    )
-
                 sess.run(init)
                 trained_network = saver.restore(sess,checkpoint_path)
 
                 time_list = []
 
                 for batch,image_names in image_generator:
-                    n_images = len(batch)
-                    batch = np.stack(batch,0)
 
                     a = time.perf_counter()
                     prediction = sess.run(prob_network)
+                    n_images = prediction.shape[0]
                     b = time.perf_counter()
                     t_image = (b - a)/n_images
                     time_list.append(t_image)
@@ -736,34 +703,16 @@ def main(mode,
                 except:
                     pass
 
-                image_generator = generate_images(
-                    image_path_list,
-                    truth_dir,
-                    batch_size=batch_size,
-                    crop=crop,
-                    net_x=net_x,
-                    net_y=net_y,
-                    input_height=input_height,
-                    input_width=input_width,
-                    resize=resize,
-                    resize_height=resize_height,
-                    resize_width=resize_width,
-                    n_classes=n_classes,
-                    mode='tumble_predict'
-                    )
-
                 sess.run(init)
                 trained_network = saver.restore(sess,checkpoint_path)
 
                 time_list = []
 
                 for batch,image_names in image_generator:
-                    n_images = len(batch)
-                    batch = np.stack(batch,0)
-
                     a = time.perf_counter()
                     prediction = sess.run(binarized_network)
                     b = time.perf_counter()
+                    n_images = prediction.size[0]
                     t_image = (b - a)/n_images
                     time_list.append(t_image)
 
