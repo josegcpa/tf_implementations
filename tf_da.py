@@ -335,8 +335,8 @@ def elastic_transform(image,*masks):
 
     def unpack_et(image,masks):
         out = et(image=image,masks=masks)
-        [image,*masks] = out
-        print(image.shape,(x.shape for x in masks))
+        image,*masks = out['image'],out['masks']
+        print(image.shape)
         return out
 
     et = ElasticTransform(sigma=30,alpha_affine=30,p=0.7)
