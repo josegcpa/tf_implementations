@@ -204,8 +204,6 @@ def main(mode,
             out = [image,*masks]
             return out
 
-        shapes = [x.get_shape().as_list() for x in [inputs,truth,weights]]
-
         IA = tf_da.ImageAugmenter(**data_augmentation_params)
         inputs_original = inputs
         inputs,mask,weights = tf.map_fn(
@@ -213,20 +211,23 @@ def main(mode,
             [inputs,truth,weights],
             (tf.float32,tf.float32,tf.float32)
             )
-        print(inputs,mask,weights)
+
+        shapes = [x.get_shape().as_list() for x in [inputs,truth,weights]]
+
         et = ElasticTransform(sigma=30,alpha_affine=30,p=0.7)
         inputs,mask,weights = tf.py_func(
             lambda x,y,z: unpack_et(image=x,masks=[y,z]),
             [inputs,truth,weights],
             Tout=[tf.float32,tf.float32,tf.float32])
-        print(shapes)
+
         inputs = tf.reshape(inputs,[-1,*shapes[0][1:]])
-        mask = tf.reshape(mask,[-1,*shapes[0][1:]])
-        weights = tf.reshape(weights,[-1,*shapes[0][1:]])
-        print(inputs,mask,weights)
+        mask = tf.reshape(mask,[-1,*shapes[1][1:]])
+        weights = tf.reshape(weights,[-1,*shapes[2][1:]])
+
     else:
         inputs = tf.image.convert_image_dtype(inputs,tf.float32)
 
+    print(weights)
     weights = tf.squeeze(weights,axis=-1)
 
     network,endpoints,classifications = u_net(
