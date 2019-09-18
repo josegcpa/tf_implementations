@@ -767,7 +767,7 @@ def generate_images(image_path_list,truth_path,
 
     while True:
         for element in generator:
-            element = (x for x in element[:-1])
+            element = tuple(x for x in element[:-1])
             yield element
 
 def generate_images_propagation(
