@@ -218,9 +218,9 @@ def main(mode,
         inputs,mask,weights = tf.map_fn(
             lambda x,y,z: tf.py_func(
                 lambda x,y,z: unpack_et(image=x,masks=[y,z]),
-                [inputs,truth,weights],
+                [x,y,z],
                 Tout=[tf.float32,tf.float32,tf.float32]),
-            [inputs,truth,weights],
+            [inputs,mask,weights],
             (tf.float32,tf.float32,tf.float32)
             )
 
