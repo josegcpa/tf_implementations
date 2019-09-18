@@ -46,7 +46,6 @@ class ImageAugmenter:
         self.min_jpeg_quality = min_jpeg_quality
 
         self.max_jpeg_quality = max_jpeg_quality
-        self.et = ElasticTransform(sigma=30,alpha_affine=30,p=0.7)
 
     def __str__(self):
         return "ImageAugmenter class"
@@ -339,10 +338,12 @@ def random_jpeg_quality(image,
 def elastic_transform(image,*masks):
 
     def unpack_et(image,masks):
-        out = self.et(image=image,masks=masks)
+        out = et(image=image,masks=masks)
         out = [image,*masks]
         return out
 
+    et = ElasticTransform(sigma=30,alpha_affine=30,p=0.7)
+    
     shapes = [x.get_shape().as_list() for x in [image,*masks]]
 
     out = tf.py_func(
