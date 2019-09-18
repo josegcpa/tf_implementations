@@ -199,6 +199,11 @@ def main(mode,
         crop = False
 
     if is_training == True:
+        def unpack_et(image,masks):
+            out = et(image=image,masks=masks)
+            out = [image,*masks]
+            return out
+
         IA = tf_da.ImageAugmenter(**data_augmentation_params)
         inputs_original = inputs
         inputs,mask,weights = tf.map_fn(
@@ -206,11 +211,16 @@ def main(mode,
             [inputs,truth,weights],
             (tf.float32,tf.float32,tf.float32)
             )
-
+        et = ElasticTransform(sigma=30,alpha_affine=30,p=0.7)
+        inputs,mask,weights = tf.py_func(
+            lambda x,y,z: [unpack_et(image=x,masks=[y,z]),
+            [image,truth,weights],
+            Tout=[tf.float32,tf.float32,tf.float32])
     else:
         inputs = tf.image.convert_image_dtype(inputs,tf.float32)
 
     weights = tf.squeeze(weights,axis=-1)
+
 
     network,endpoints,classifications = u_net(
         inputs,
