@@ -54,6 +54,8 @@ class ImageAugmenter:
     def augment(self,image,*masks):
         image = tf.image.convert_image_dtype(image,tf.float32)
 
+        image,masks = elastic_transform(image,masks)
+
         image_shape = image.get_shape().as_list()
         image = random_color_transformations(image,
                                              self.brightness_max_delta,
