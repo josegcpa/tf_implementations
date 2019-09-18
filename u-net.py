@@ -81,7 +81,6 @@ def main(mode,
          checkpoint_path,
          prediction_output,
          large_prediction_output,
-         convert_hsv,
          data_augmentation_params,
          resize,
          resize_height,
@@ -124,7 +123,6 @@ def main(mode,
     * prediction_output - where the predicted output should be stored
     * large_prediction_output - where the large image predictions should be
     stored
-    * convert_hsv - whether the images should be converted to hsv color space
     * noise_chance - probability of corrupting the image with random noise
     * blur_chance - probability of blurring the image
     * flip_chance - probability of rotating the image
@@ -147,9 +145,6 @@ def main(mode,
 
     print("Preparing the network...\n")
 
-    inputs = tf.placeholder(tf.uint8, [None,input_height,input_width,3],
-                            name='InputTensor')
-
     if dataset_dir != None:
         image_path_list = glob(dataset_dir + '/*' + extension)
     if path_csv != None:
@@ -166,51 +161,106 @@ def main(mode,
     if trial:
         image_path_list = image_path_list[:50]
 
+    if mode == 'train':
+        is_training = True
+        output_types = (tf.uint8,tf.float32,tf.float32,tf.int32)
+        output_shapes = (
+            [input_height,input_width,3],
+            [input_height,input_width,n_classes],
+            [input_height,input_width,1],
+            []
+            )
+    elif mode == 'test':
+        is_training = False
+        output_types = (tf.uint8,tf.float32,tf.int32)
+        output_shapes = (
+            [input_height,input_width,3],
+            [input_height,input_width,n_classes],
+            []
+            )
+    elif mode == 'predict':
+        is_training = False
+        output_types = tf.uint8
+        output_shapes = [input_height,input_width,3]
+    elif mode == 'large_predict':
+        is_training = False
+        output_types = (tf.uint8,tf.string,tf.int32,tf.int32)
+        output_shapes = ([input_height,input_width,3],[],[2],[])
+
+    next_element = tf_dataset_from_generator(
+        generator=generate_images,
+        generator_params={
+            'image_path_list':image_path_list,
+            'truth_path':truth_dir,
+            'batch_size':batch_size,
+            input_height = input_height,
+            input_width = input_width,
+            n_classes = n_classes,
+            truth_only = truth_only
+            },
+        output_types=output_types,
+        output_shapes=output_shapes,
+        is_training=is_training,
+        buffer_size=500,
+        batch_size=4)
+
     if epochs != None:
         number_of_steps = epochs * int(len(image_path_list)/batch_size)
 
-    if convert_hsv == True:
-        inputs = tf.image.rgb_to_hsv(inputs)
-
     if mode == 'train':
-        is_training = True
-    else:
-        is_training = False
+        inputs,truth,weights,_ = next_element
 
-    if padding == 'VALID':
-        net_x,net_y = input_height - 184,input_width - 184
-        tf_shape = [None,net_x,net_y,n_classes]
-        truth = tf.placeholder(tf.float32, tf_shape,
-                               name='TruthTensor')
-        weights = tf.placeholder(tf.float32, [None,net_x,net_y,1],
-                                 name='WeightsTensor')
-        crop = True
-
-    else:
-        net_x,net_y = (None, None)
-        if resize == True:
-            tf_shape = [None,resize_height,resize_width,n_classes]
-        else:
-            tf_shape = [None,input_height,input_width,n_classes]
-        truth = tf.placeholder(tf.float32, tf_shape,
-                               name='TruthTensor')
-        weights = tf.placeholder(tf.float32, [None,input_height,input_width,1],
-                                 name='WeightsTensor')
-        crop = False
-
-    if is_training == True:
         IA = tf_da.ImageAugmenter(**data_augmentation_params)
         inputs_original = inputs
-        inputs,mask,weights = tf.map_fn(
+        inputs,truth,weights = tf.map_fn(
             lambda x: IA.augment(x[0],x[1],x[2]),
             [inputs,truth,weights],
             (tf.float32,tf.float32,tf.float32)
             )
 
-    else:
-        inputs = tf.image.convert_image_dtype(inputs,tf.float32)
+    if mode == 'test':
+        inputs,truth,_ = next_element
+        weights = tf.placeholder(tf.float32,
+                                 [batch_size,input_height,input_width,1])
 
-    print(weights)
+    if mode == 'predict':
+        inputs = next_element
+        truth = tf.placeholder(tf.float32,
+                               [batch_size,input_height,input_width,n_classes])
+        weights = tf.placeholder(tf.float32,
+                                 [batch_size,input_height,input_width,1])
+
+    elif mode == 'large_predict':
+        inputs,large_image_path,large_image_coords,batch_shape = next_element
+        truth = tf.placeholder(tf.float32,
+                               [batch_size,input_height,input_width,n_classes])
+        weights = tf.placeholder(tf.float32,
+                                 [batch_size,input_height,input_width,1])
+
+    inputs = tf.image.convert_image_dtype(inputs,tf.float32)
+
+    if padding == 'VALID':
+        net_x,net_y = input_height - 184,input_width - 184
+        tf_shape = [None,net_x,net_y,n_classes]
+        if training == True:
+            truth = truth[:,92:(input_height - 92),92:(input_width - 92),:]
+            weights = weights[:,92:(input_height - 92),92:(input_width - 92),:]
+        crop = True
+
+    else:
+        if resize == True:
+            inputs = tf.image.resize_bilinear(images,
+                                              [resize_height,resize_width])
+            if training == True:
+                truth = tf.image.resize_bilinear(
+                    truth,
+                    [resize_height,resize_width])
+                weights = tf.image.resize_bilinear(
+                    weights,
+                    [resize_height,resize_width])
+        net_x,net_y = (None, None)
+        crop = False
+
     weights = tf.squeeze(weights,axis=-1)
 
     network,endpoints,classifications = u_net(
@@ -436,26 +486,6 @@ def main(mode,
     if len(image_path_list) > 0:
 
         if mode == 'train':
-            tmp = []
-
-            for image_path in image_path_list:
-                truth_image_path = os.sep.join([
-                    truth_dir,
-                    image_path.split(os.sep)[-1]])
-                image = np.array(Image.open(truth_image_path))
-                if image.shape[0] == input_height\
-                 and image.shape[1] == input_width:
-                    if truth_only == True:
-                        if len(np.unique(image)) == 2:
-                            tmp.append(image_path)
-                    else:
-                        tmp.append(image_path)
-
-            image_path_list = tmp
-
-            print("Found {0:d} images in {1!s}".format(
-                len(image_path_list),dataset_dir
-            ))
 
             print("Training the network...\n")
             LOG = 'Step {0:d}: minibatch loss: {1:f}. '
@@ -496,22 +526,6 @@ def main(mode,
                     loading_saver.restore(sess,checkpoint_path)
                     print('Restored')
 
-                image_generator = generate_images(
-                    image_path_list,
-                    truth_dir,
-                    batch_size = batch_size,
-                    crop = crop,
-                    net_x = net_x,
-                    net_y = net_y,
-                    input_height = input_height,
-                    input_width = input_width,
-                    resize = resize,
-                    resize_height = resize_height,
-                    resize_width = resize_width,
-                    n_classes = n_classes,
-                    truth_only = truth_only
-                    )
-
                 time_list = []
 
                 all_class_losses = []
@@ -524,11 +538,7 @@ def main(mode,
 
                     a = time.perf_counter()
                     _,l,_,_ = sess.run(
-                        [train_op,loss,f1score_op,auc_op],
-                        feed_dict = {
-                            'InputTensor:0':batch,
-                            'TruthTensor:0':truth_batch,
-                            'WeightsTensor:0':weight_batch})
+                        [train_op,loss,f1score_op,auc_op])
 
                     if aux_node:
                         class_l = l[1]
@@ -540,11 +550,7 @@ def main(mode,
                      i % number_of_steps == 0:
                         b = next(image_generator)
                         batch,truth_batch,weight_batch = b
-                        l,_,_ = sess.run([loss,auc_op,f1score_op],
-                                 feed_dict = {
-                                     'InputTensor:0':batch,
-                                     'TruthTensor:0':truth_batch,
-                                     'WeightsTensor:0':weight_batch})
+                        l,_,_ = sess.run([loss,auc_op,f1score_op])
                         f1,auc_ = sess.run([f1score,auc])
                         log_write_print(log_file,
                                         LOG.format(i,l,np.mean(time_list),
@@ -557,12 +563,7 @@ def main(mode,
                         sess.run(tf.local_variables_initializer())
 
                     if i % save_summary_steps == 0 or i == 1:
-                        summary = sess.run(
-                            summary_op,
-                            feed_dict = {
-                                'InputTensor:0':batch,
-                                'TruthTensor:0':truth_batch,
-                                'WeightsTensor:0':weight_batch})
+                        summary = sess.run(summary_op)
                         writer.add_summary(summary,i)
                         log_write_print(
                             log_file,SUMMARY.format(i,save_summary_folder))
@@ -625,9 +626,7 @@ def main(mode,
                     time_list.append(t_image)
 
                     sess.run([auc_op,f1score_op,m_iou_op,
-                              auc_batch_op,f1score_batch_op,m_iou_batch_op],
-                             feed_dict = {'TruthTensor:0':truth_batch,
-                                          'InputTensor:0':batch})
+                              auc_batch_op,f1score_batch_op,m_iou_batch_op])
 
                     f1,auc_,iou = sess.run([f1score_batch,
                                             auc_batch,
@@ -712,8 +711,7 @@ def main(mode,
                     batch = np.stack(batch,0)
 
                     a = time.perf_counter()
-                    prediction = sess.run(prob_network,
-                                          feed_dict = {'InputTensor':batch})
+                    prediction = sess.run(prob_network)
                     b = time.perf_counter()
                     t_image = (b - a)/n_images
                     time_list.append(t_image)
@@ -772,8 +770,7 @@ def main(mode,
                     batch = np.stack(batch,0)
 
                     a = time.perf_counter()
-                    prediction = sess.run(binarized_network,
-                                          feed_dict = {'InputTensor':batch})
+                    prediction = sess.run(binarized_network)
                     b = time.perf_counter()
                     t_image = (b - a)/n_images
                     time_list.append(t_image)
@@ -854,8 +851,7 @@ def main(mode,
                     batch = np.stack(batch,0)
 
                     a = time.perf_counter()
-                    prediction = sess.run(network,
-                                          feed_dict = {'InputTensor':batch})
+                    prediction = sess.run(network)
                     b = time.perf_counter()
                     t_image = (b - a)/n_images
                     time_list.append(t_image)
@@ -1053,10 +1049,6 @@ for arg in [
                             action='store_true',
                             default=False)
 #Pre-processing
-parser.add_argument('--convert_hsv',dest = 'convert_hsv',
-                    action = 'store_true',
-                    default = False,
-                    help = 'Converts RGB input to HSV.')
 parser.add_argument('--noise_chance',dest = 'noise_chance',
                     action = 'store',type = float,
                     default = 0.1,
@@ -1178,7 +1170,6 @@ data_augmentation_params = {
 }
 
 #Pre-processing
-convert_hsv = args.convert_hsv
 resize = args.resize
 resize_height = args.resize_height
 resize_width = args.resize_width
@@ -1236,7 +1227,6 @@ if __name__ == '__main__':
          checkpoint_path=checkpoint_path,
          prediction_output=prediction_output,
          large_prediction_output=large_prediction_output,
-         convert_hsv=convert_hsv,
          data_augmentation_params=data_augmentation_params,
          resize=resize,
          resize_height=resize_height,

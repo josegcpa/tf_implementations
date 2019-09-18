@@ -256,12 +256,6 @@ def u_net(inputs,
 
         with tf.variable_scope('U-net', None, [inputs]):
 
-            if resize == True:
-                inputs = tf.image.resize_images(
-                    inputs,
-                    [resize_height,resize_width],
-                    method = tf.image.ResizeMethod.BILINEAR)
-
             inputs = slim.batch_norm(inputs,is_training=is_training)
 
             with tf.variable_scope('Red_Operations',None,[inputs]):
@@ -508,6 +502,10 @@ def normal_image_generator(image_list,*mask_list,
         if eternal == False:
             cont = False
 
+def prediction_image_generator(image_path_list):
+    for image_path in image_path_list:
+        return np.array(Image.open(image_path))
+
 def tumble_image_generator(image_path_list):
     """
     Generates the 8 possible conformations for each image obtained through
@@ -606,10 +604,8 @@ def remap_tiles(mask,division_mask,h_1,w_1,tile):
     division_mask[h_1:h_1 + x,w_1:w_1 + y,:] += np.ones(tile.shape)
     return mask,division_mask
 
-def generate_images(image_path_list,truth_path,batch_size,crop,
-                    net_x = None,net_y = None,
-                    input_height = 256,input_width = 256,resize = False,
-                    resize_height = 256, resize_width = 256,
+def generate_images(image_path_list,truth_path,crop,
+                    input_height = 256,input_width = 256,
                     padding = 'VALID',n_classes = 2,
                     truth_only = False,
                     weight_maps = True,
@@ -620,22 +616,21 @@ def generate_images(image_path_list,truth_path,batch_size,crop,
     Arguments [default]:
     * image_path_list - a list of image paths
     * truth_path - a list of ground truth image paths
-    * batch_size - the size of the batch
-    * crop - whether the ground truth image should be cropped or not
-    * chances - chances for the realtime_image_augmentation [[0,0,0]]
     * net_x - output height for the network [None]
     * net_y - output width for the network [None]
     * input_height - input height for the network [256]
     * input_width - input width for the network [256]
-    * resize - whether the input should be resized or not [False]
-    * resize_height - height of the resized input [256]
-    * resize_width - width of the resized input [256]
     * padding - whether VALID or SAME padding should be used ['VALID']
     * n_classes - no. of classes [2]
     * truth_only - whether only positive images should be used [False]
     * mode - algorithm mode [train].
     """
 
+    def check_size(image_path):
+        size = Image.open(image_path).size
+        return np.all([size[0] == input_height,size[1] == input_width])
+
+    image_path_list = [x for x in image_path_list if check_size(x) == True]
 
     if mode == 'train':
         image_list = []
@@ -681,12 +676,6 @@ def generate_images(image_path_list,truth_path,batch_size,crop,
                 for j in range(n_classes):
                     mask[:,:,j][truth_img == classes[j]] = 1
             truth_img = mask
-
-            if resize == True:
-                    truth_img = cv2.resize(
-                        truth_img,
-                        dsize = (resize_height,resize_width),
-                        interpolation = cv2.INTER_NEAREST)
             weight_map = get_weight_map(truth_img)
             dist_weight_map = get_near_weight_map(truth_img,w0=2,sigma=20)
             weight_map = weight_map + dist_weight_map
@@ -699,33 +688,6 @@ def generate_images(image_path_list,truth_path,batch_size,crop,
             classification_list=None,
             random=True,eternal=True
         )
-
-        batch = []
-        truth_batch = []
-        weight_batch = []
-
-
-        while True:
-            for element in generator:
-                img,truth_img,weight_map,_ = element
-
-                if len(batch) >= batch_size:
-                    batch = []
-                    truth_batch = []
-                    weight_batch = []
-                if net_x != None and net_y != None:
-                    x1,y1 = truth_img.shape[0:2]
-                    x2,y2 = (int((x1 - net_x)/2),int((y1 - net_y)/2))
-                    truth_img = truth_img[x2:x1 - x2,y2:y1 - y2,:]
-                    weight_map = weight_map[x2:x1 - x2,y2:y1 - y2,:]
-                batch.append(img)
-                truth_batch.append(truth_img)
-                weight_batch.append(weight_map)
-
-                if len(batch) >= batch_size:
-                    yield batch,truth_batch,weight_batch
-            if len(batch) > 0:
-                yield batch,truth_batch,weight_batch
 
     elif mode == 'test':
         image_list = []
@@ -765,11 +727,6 @@ def generate_images(image_path_list,truth_path,batch_size,crop,
                     mask[:,:,j][truth_img == classes[j]] = 1
             truth_img = mask
 
-            if resize == True:
-                    truth_img = cv2.resize(
-                        truth_img,
-                        dsize = (resize_height,resize_width),
-                        interpolation = cv2.INTER_NEAREST)
             image_list.append(image_to_array(image_path))
             truth_list.append(truth_img)
 
@@ -779,56 +736,8 @@ def generate_images(image_path_list,truth_path,batch_size,crop,
             random=False,eternal=False
         )
 
-        batch = []
-        truth_batch = []
-
-        for element in generator:
-            img,truth_img,_ = element
-            if len(batch) >= batch_size:
-                batch = []
-                truth_batch = []
-            if net_x != None and net_y != None:
-                x1,y1 = truth_img.shape[0:2]
-                x2,y2 = (int((x1 - net_x)/2),int((y1 - net_y)/2))
-                truth_img = truth_img[x2:x1 - x2,y2:y1 - y2,:]
-            batch.append(img)
-            truth_batch.append(truth_img)
-
-            if len(batch) >= batch_size:
-                yield batch,truth_batch
-        if len(batch) > 0:
-            yield batch,truth_batch
-
     elif mode == 'predict':
-        generator = single_image_generator(image_path_list)
-        batch_paths = []
-        for img,img_path in generator:
-            if len(batch) >= batch_size:
-                batch = []
-                batch_paths = []
-            batch.append(img)
-            batch_paths.append(img_path)
-
-            if len(batch) >= batch_size:
-                yield batch,batch_paths
-        if len(batch) > 0:
-            yield batch,batch_paths
-
-    elif mode == 'tumble_predict':
-        generator = tumble_image_generator(image_path_list)
-        batch_paths = []
-        for img,img_path in generator:
-            if len(batch) >= batch_size:
-                batch = []
-                batch_paths = []
-            img = img.astype(np.float32)
-            batch.append(img)
-            batch_paths.append(img_path)
-
-            if len(batch) >= batch_size:
-                yield batch,batch_paths
-        if len(batch) > 0:
-            yield batch,batch_paths
+        generator = prediction_image_generator(image_path_list)
 
     elif mode == 'large_predict':
         batch_paths = []
@@ -854,16 +763,11 @@ def generate_images(image_path_list,truth_path,batch_size,crop,
                     batch_shape = []
 
                 shape = img.shape
-                batch.append(img)
-                batch_paths.append(large_image_path)
-                batch_coord.append((x,y))
-                batch_shape.append(large_image.shape[0:2])
+                yield image,large_image_path,(x,y),batch_shape
 
-                if len(batch) >= batch_size:
-                    yield batch,batch_paths,batch_coord,batch_shape
-
-            if len(batch) > 0:
-                yield batch,batch_paths,batch_coord,batch_shape
+    while True:
+        for element in generator:
+            yield element
 
 def generate_images_propagation(
     image_path_list,truth_path,propagation_path,
@@ -927,31 +831,10 @@ def generate_images_propagation(
 
         generator = normal_image_generator(image_list,truth_list,weight_map_list)
 
-        a = True
-        batch = []
-        truth_batch = []
-        weight_batch = []
-        while a == True:
+        while True:
             for element in generator:
                 img,truth_img,weight_map,_ = element
-
-                if len(batch) >= batch_size:
-                    batch = []
-                    truth_batch = []
-                    weight_batch = []
-                if net_x != None and net_y != None:
-                    x1,y1 = truth_img.shape[0:2]
-                    x2,y2 = (int((x1 - net_x)/2),int((y1 - net_y)/2))
-                    truth_img = truth_img[x2:x1 - x2,y2:y1 - y2,:]
-                    weight_map = weight_map[x2:x1 - x2,y2:y1 - y2,:]
-                batch.append(img)
-                truth_batch.append(truth_img)
-                weight_batch.append(weight_map)
-
-                if len(batch) >= batch_size:
-                    yield batch,truth_batch,weight_batch
-            if len(batch) > 0:
-                yield batch,truth_batch,weight_batch
+                yield img,truth_img,weight_map
 
     if mode == 'predict':
         a = True
@@ -981,22 +864,7 @@ def generate_images_propagation(
         while a == True:
             for element in generator:
                 img,weight_map,_ = element
-
-                if len(batch) >= batch_size:
-                    batch = []
-                    weight_batch = []
-                if net_x != None and net_y != None:
-                    x1,y1 = weight_map.shape[0:2]
-                    x2,y2 = (int((x1 - net_x)/2),int((y1 - net_y)/2))
-                    weight_map = weight_map[x2:x1 - x2,y2:y1 - y2,:]
-                batch.append(img)
-                weight_batch.append(weight_map)
-
-                if len(batch) >= batch_size:
-                    yield batch,weight_batch
-            if len(batch) > 0:
-                yield batch,weight_batch
-
+                yield img,weight_map
 
 def classification_generator(image_path_list,classification_list,
                              chances = [0,0,0],
@@ -1037,34 +905,32 @@ def classification_generator(image_path_list,classification_list,
     else:
         generator = normal_image_generator(image_list,classification_list)
 
-    while a == True:
+    while True:
         for element in generator:
             if mode == 'train':
                 img,_,_,classification = element
             else:
                 img,classification = element
-            #Normalize data between 0 - 1
-            img = img.astype(np.float32)
-            for i in range(3):
-                tmp = img[:,:,i]
-                z_tmp = (tmp - np.mean(tmp)) / np.std(tmp)
-                num = (z_tmp - np.min(z_tmp))
-                den = (np.max(z_tmp) - np.min(z_tmp))
-                img[:,:,i] = num / den
-            if len(batch) >= batch_size:
-                batch = []
-                classification_batch = []
+            yield batch,classification
 
-            batch.append(img)
-            classification_batch.append(classification)
+def tf_dataset_from_generator(generator,generator_params,
+                              output_types,output_shapes,
+                              is_training,buffer_size,batch_size):
+    """
+    Returns the next element
+    """
+    dataset = tf.data.Dataset.from_generator(
+        generator=lambda: generator(**generator_params),
+        output_types=output_types,
+        output_shapes=output_shapes
+    )
 
-            if len(batch) >= batch_size:
-                yield batch,classification_batch
-
-        if len(batch) > 0:
-            yield batch,classification_batch
-        if mode == 'test':
-            a = False
+    if is_training == True:
+        dataset = dataset.repeat()
+    dataset = dataset.shuffle(buffer_size=buffer_size)
+    dataset = dataset.batch(batch_size)
+    iterator = dataset.make_one_shot_iterator()
+    return iterator.get_next()
 
 """
 Weight map calculation from segmentation maps operations.
