@@ -204,7 +204,7 @@ def main(mode,
             out = [image,*masks]
             return out
 
-        shapes = [x.get_shape().as_list() for x in [inputs,mask,weights]]
+        shapes = [x.get_shape().as_list() for x in [inputs,truth,weights]]
 
         IA = tf_da.ImageAugmenter(**data_augmentation_params)
         inputs_original = inputs
