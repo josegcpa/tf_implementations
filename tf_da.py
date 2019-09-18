@@ -346,7 +346,7 @@ def elastic_transform(image,*masks):
 
     out = tf.py_func(
         lambda x: unpack_et(image=x[0],masks=x[1:]),
-        l,
+        [image,*masks],
         Tout=[tf.float32,*[tf.float32 for _ in masks]])
 
     out = [tf.reshape(out[i],shapes[i]) for i in range(len(out))]
