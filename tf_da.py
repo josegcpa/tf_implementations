@@ -337,7 +337,7 @@ def elastic_transform(image,*masks):
         out = et(image=image,masks=masks)
         image,*masks = out['image'],out['masks']
         out = [image,*masks]
-        return
+        return out
 
     et = ElasticTransform(sigma=30,alpha_affine=30,p=0.7)
 
