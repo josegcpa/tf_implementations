@@ -204,6 +204,8 @@ def main(mode,
             out = [image,*masks]
             return out
 
+        shapes = [x.get_shape().as_list() for x in [inputs,mask,weights]]
+
         IA = tf_da.ImageAugmenter(**data_augmentation_params)
         inputs_original = inputs
         inputs,mask,weights = tf.map_fn(
@@ -216,6 +218,9 @@ def main(mode,
             lambda x,y,z: unpack_et(image=x,masks=[y,z]),
             [inputs,truth,weights],
             Tout=[tf.float32,tf.float32,tf.float32])
+        inputs = tf.reshape(inputs,shapes[0])
+        mask = tf.reshape(mask,shapes[1])
+        weights = tf.reshape(weights,shapes[2])
     else:
         inputs = tf.image.convert_image_dtype(inputs,tf.float32)
 
