@@ -205,7 +205,7 @@ def main(mode,
         number_of_steps = epochs * int(len(image_path_list)/batch_size)
 
     if mode == 'train':
-        inputs,truth,weights,_ = next_element
+        inputs,truth,weights = next_element
 
         IA = tf_da.ImageAugmenter(**data_augmentation_params)
         inputs_original = inputs
@@ -216,7 +216,7 @@ def main(mode,
             )
 
     if mode == 'test':
-        inputs,truth,_ = next_element
+        inputs,truth = next_element
         weights = tf.placeholder(tf.float32,
                                  [batch_size,input_height,input_width,1])
 
