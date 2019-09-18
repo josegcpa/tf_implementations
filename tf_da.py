@@ -58,7 +58,11 @@ class ImageAugmenter:
     def augment(self,image,*masks):
         image = tf.image.convert_image_dtype(image,tf.float32)
 
-        image,masks = elastic_transform(image,*masks)
+        image,masks = elastic_transform(
+            image,*masks,
+            sigma=self.elastic_transform_sigma,
+            alpha_affine=self.elastic_transform_alpha,
+            p=self.elastic_transform_p)
 
         image_shape = image.get_shape().as_list()
         image = random_color_transformations(image,
@@ -342,20 +346,26 @@ def random_jpeg_quality(image,
                                         min_jpeg_quality,
                                         max_jpeg_quality)
 
-def elastic_transform(image,*masks):
+def elastic_transform(image,*masks,sigma=30,alpha_affine=30,p=0.7):
     """
     Applies elastic distortion (elastic transform) to images and their
-    respective masks.
+    respective masks. Requires
+
+    Parameters:
+    * image - three channel image (H,W,3)
+    * masks - masks to be augmented with the image
+    * sigma, alpha_affine, p - parameters for the ElasticTransform class
     """
+    
     def unpack_et(image,masks):
         out = et(image=image,masks=masks)
         image,masks = out['image'],out['masks']
         out = [image,*masks]
         return out
 
-    et = ElasticTransform(sigma=self.elastic_transform_sigma,
-                          alpha_affine=self.elastic_transform_alpha,
-                          p=self.elastic_transform_p)
+    et = ElasticTransform(sigma=sigma,
+                          alpha_affine=alpha_affine,
+                          p=p)
 
     shapes = [x.get_shape().as_list() for x in [image,*masks]]
 
