@@ -221,7 +221,7 @@ def main(mode,
                 l,
                 Tout=[tf.float32,tf.float32,tf.float32]),
             [inputs,mask,weights],
-            (tf.float32,tf.float32,tf.float32)
+            [tf.float32,tf.float32,tf.float32]
             )
 
         inputs = tf.reshape(inputs,[-1,*shapes[0][1:]])
