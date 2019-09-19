@@ -212,6 +212,7 @@ def main(mode,
 
             return image,mask,weights
 
+        print('image_path_length',len(image_path_list))
         files = tf.data.Dataset.list_files(
             '{}/*tfrecord*'.format(dataset_dir))
         dataset = files.interleave(
