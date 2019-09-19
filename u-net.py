@@ -218,7 +218,7 @@ def main(mode,
         print(len(image_path_list)//10)
         dataset = files.interleave(
             tf.data.TFRecordDataset,
-            np.minimum(len(image_path_list)//10,50)
+            np.maximum(np.minimum(len(image_path_list)//10,50),1)
         )
         if mode == 'train':
             dataset = dataset.repeat()
