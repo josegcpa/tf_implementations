@@ -212,7 +212,6 @@ def main(mode,
 
             return image,mask,weights
 
-        print('image_path_length',len(image_path_list))
         files = tf.data.Dataset.list_files(
             '{}/*tfrecord*'.format(dataset_dir))
         dataset = files.interleave(
@@ -611,7 +610,8 @@ def main(mode,
                                             CHECKPOINT.format(i,
                                                               CHECKPOINT_PATH))
                         sess.run(tf.local_variables_initializer())
-
+                        
+                summary = sess.run(summary_op)
                 writer.add_summary(summary,i)
                 log_write_print(
                     log_file,SUMMARY.format(i,save_summary_folder))
