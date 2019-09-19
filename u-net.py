@@ -210,7 +210,7 @@ def main(mode,
             mask = tf.reshape(mask,[input_height, input_width, n_classes])
             weights = tf.reshape(weights,[input_height, input_width, 1])
 
-            return train_image,mask,weights
+            return image,mask,weights
 
         files = tf.data.Dataset.list_files(
             '{}/*tfrecord*'.format(dataset_dir))
