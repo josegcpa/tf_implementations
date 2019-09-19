@@ -204,7 +204,7 @@ def main(mode,
             mask = tf.decode_raw(
                 features['mask'],tf.uint8)
             weights = tf.decode_raw(
-                features['weights'],tf.float32)
+                features['weight_mask'],tf.float32)
 
             train_image = tf.reshape(train_image,
                                      [input_height, input_width, 3])
