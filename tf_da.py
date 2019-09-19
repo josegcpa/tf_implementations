@@ -57,7 +57,7 @@ class ImageAugmenter:
 
     def augment(self,image,*masks):
         image = tf.image.convert_image_dtype(image,tf.float32)
-
+        masks = [tf.image.convert_image_dtype(m,tf.float32) for m in masks]
         image,masks = elastic_transform(
             image,*masks,
             sigma=self.elastic_transform_sigma,
@@ -356,7 +356,7 @@ def elastic_transform(image,*masks,sigma=30,alpha_affine=30,p=0.7):
     * masks - masks to be augmented with the image
     * sigma, alpha_affine, p - parameters for the ElasticTransform class
     """
-    
+
     def unpack_et(image,masks):
         out = et(image=image,masks=masks)
         image,masks = out['image'],out['masks']
