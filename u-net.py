@@ -231,21 +231,22 @@ def main(mode,
         if mode == 'test':
             next_element = [next_element[0],next_element[1]]
 
-    next_element = tf_dataset_from_generator(
-        generator=generate_images,
-        generator_params={
-            'image_path_list':image_path_list,
-            'truth_path':truth_dir,
-            'input_height':input_height,
-            'input_width':input_width,
-            'n_classes':n_classes,
-            'truth_only':truth_only
-            },
-        output_types=output_types,
-        output_shapes=output_shapes,
-        is_training=is_training,
-        buffer_size=500,
-        batch_size=4)
+    else:
+        next_element = tf_dataset_from_generator(
+            generator=generate_images,
+            generator_params={
+                'image_path_list':image_path_list,
+                'truth_path':truth_dir,
+                'input_height':input_height,
+                'input_width':input_width,
+                'n_classes':n_classes,
+                'truth_only':truth_only
+                },
+            output_types=output_types,
+            output_shapes=output_shapes,
+            is_training=is_training,
+            buffer_size=500,
+            batch_size=4)
 
     if epochs != None:
         number_of_steps = epochs * int(len(image_path_list)/batch_size)
