@@ -147,6 +147,7 @@ def main(mode,
 
     if dataset_dir != None:
         image_path_list = glob(dataset_dir + '/*' + extension)
+
     if path_csv != None:
         with open(path_csv) as o:
             lines = o.readlines()
@@ -184,6 +185,54 @@ def main(mode,
         is_training = False
         output_types = (tf.uint8,tf.string,tf.int32,tf.int32)
         output_shapes = ([input_height,input_width,3],[],[2],[])
+
+    if np.all([extension == 'tfrecord',
+               dataset_dir != None,
+               mode in ['train','test']]):
+        def parse_example(serialized_example):
+            feature = {
+                'image': tf.FixedLenFeature([], tf.string),
+                'mask': tf.FixedLenFeature([], tf.string),
+                'weight_mask': tf.FixedLenFeature([], tf.string),
+                'image_name': tf.FixedLenFeature([], tf.string),
+                'classification': tf.FixedLenFeature([], tf.int64)
+            }
+            features = tf.parse_single_example(serialized_example,
+                                               features=feature)
+            image = tf.decode_raw(
+                features['image'],tf.uint8)
+            mask = tf.decode_raw(
+                features['mask'],tf.uint8)
+            weights = tf.decode_raw(
+                features['weights'],tf.float32)
+
+            train_image = tf.reshape(train_image,
+                                     [input_height, input_width, 3])
+            mask = tf.reshape(mask,
+                              [input_height, input_width, n_classes])
+            weights = tf.reshape(weights,
+                                 [input_height, input_width, 1])
+
+            return train_image,mask,weights
+
+        files = tf.data.Dataset.list_files(
+            '{}/*tfrecord*'.format(dataset_dir))
+        dataset = files.interleave(
+            tf.data.TFRecordDataset,
+            np.minimum(len(image_path_list)/10,50)
+        )
+        if self.mode == 'train':
+            dataset = dataset.repeat()
+            dataset = dataset.shuffle(len(self.image_path_list))
+        dataset = dataset.map(parse_example)
+        dataset = dataset.batch(self.batch_size)
+        if self.mode == 'train':
+            dataset = dataset.shuffle(buffer_size=500)
+        iterator = dataset.make_one_shot_iterator()
+
+        next_element = iterator.get_next()
+        if self.mode == 'test':
+            next_element = [next_element[0],next_element[1]]
 
     next_element = tf_dataset_from_generator(
         generator=generate_images,
