@@ -223,9 +223,9 @@ def main(mode,
         )
         if mode == 'train':
             dataset = dataset.repeat()
-            dataset = dataset.shuffle(len(self.image_path_list))
+            dataset = dataset.shuffle(len(image_path_list))
         dataset = dataset.map(parse_example)
-        dataset = dataset.batch(self.batch_size)
+        dataset = dataset.batch(batch_size)
         if mode == 'train':
             dataset = dataset.shuffle(buffer_size=500)
         iterator = dataset.make_one_shot_iterator()
