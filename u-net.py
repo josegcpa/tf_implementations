@@ -214,8 +214,6 @@ def main(mode,
 
         files = tf.data.Dataset.list_files(
             '{}/*tfrecord*'.format(dataset_dir))
-        print(len(image_path_list))
-        print(len(image_path_list)//10)
         dataset = files.interleave(
             tf.data.TFRecordDataset,
             np.maximum(np.minimum(len(image_path_list)//10,50),1)
