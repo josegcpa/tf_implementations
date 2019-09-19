@@ -214,9 +214,11 @@ def main(mode,
 
         files = tf.data.Dataset.list_files(
             '{}/*tfrecord*'.format(dataset_dir))
+        print(len(image_path_list))
+        print(len(image_path_list)//10)
         dataset = files.interleave(
             tf.data.TFRecordDataset,
-            np.minimum(len(image_path_list)/10,50)
+            np.minimum(len(image_path_list)//10,50)
         )
         if mode == 'train':
             dataset = dataset.repeat()
@@ -610,7 +612,7 @@ def main(mode,
                                             CHECKPOINT.format(i,
                                                               CHECKPOINT_PATH))
                         sess.run(tf.local_variables_initializer())
-                        
+
                 summary = sess.run(summary_op)
                 writer.add_summary(summary,i)
                 log_write_print(
