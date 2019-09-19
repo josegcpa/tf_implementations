@@ -221,17 +221,17 @@ def main(mode,
             tf.data.TFRecordDataset,
             np.minimum(len(image_path_list)/10,50)
         )
-        if self.mode == 'train':
+        if mode == 'train':
             dataset = dataset.repeat()
             dataset = dataset.shuffle(len(self.image_path_list))
         dataset = dataset.map(parse_example)
         dataset = dataset.batch(self.batch_size)
-        if self.mode == 'train':
+        if mode == 'train':
             dataset = dataset.shuffle(buffer_size=500)
         iterator = dataset.make_one_shot_iterator()
 
         next_element = iterator.get_next()
-        if self.mode == 'test':
+        if mode == 'test':
             next_element = [next_element[0],next_element[1]]
 
     next_element = tf_dataset_from_generator(
