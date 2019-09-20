@@ -551,11 +551,13 @@ def main(mode,
                 pass
 
             config = tf.ConfigProto()
+
             local_dev = device_lib.list_local_devices()
             n_gpu = len([x.name for x in local_dev if x.device_type == 'GPU'])
 
             if n_gpu > 0:
                 config.gpu_options.polling_inactive_delay_msecs = 2000
+                config.gpu_options.allow_growth = True
             else:
                 n_phys_cores = psutil.cpu_count(logical = False)
                 config.intra_op_parallelism_threads = n_phys_cores
