@@ -586,8 +586,7 @@ def main(mode,
                         all_class_losses.append(class_l)
                     b = time.perf_counter()
                     time_list.append(b - a)
-                    if i % log_every_n_steps == 0 or i == 1 or\
-                     i % number_of_steps == 0:
+                    if i % log_every_n_steps == 0 or i == 1:
                         l,_,_ = sess.run([loss,auc_op,f1score_op])
                         f1,auc_ = sess.run([f1score,auc])
                         log_write_print(log_file,
@@ -598,7 +597,6 @@ def main(mode,
                             class_l = np.mean(all_class_losses)
                             all_class_losses = []
                             print('\tAux_Node loss = {}'.format(class_l))
-                        sess.run(tf.local_variables_initializer())
 
                     if i % save_summary_steps == 0 or i == 1:
                         summary = sess.run(summary_op)
