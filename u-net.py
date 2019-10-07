@@ -663,24 +663,30 @@ def main(mode,
                 all_m_iou = []
                 time_list = []
 
-                for _ in range(len(image_path_list) // batch_size + 1):
-                    a = time.perf_counter()
-                    n_images = sess.run([network]).shape[0]
-                    b = time.perf_counter()
-                    t_image = (b - a)/n_images
-                    time_list.append(t_image)
-                    sess.run([auc_op,f1score_op,m_iou_op,
-                              auc_batch_op,f1score_batch_op,m_iou_batch_op])
+                keep_going = True
 
-                    f1,auc_,iou = sess.run([f1score_batch,
-                                            auc_batch,
-                                            m_iou_batch])
+                while keep_going == True:
 
-                    all_f1score.append(f1)
-                    all_auc.append(auc_)
-                    all_m_iou.append(iou)
+                    try:
+                        a = time.perf_counter()
+                        n_images = sess.run([network]).shape[0]
+                        b = time.perf_counter()
+                        t_image = (b - a)/n_images
+                        time_list.append(t_image)
+                        sess.run([auc_op,f1score_op,m_iou_op,
+                                  auc_batch_op,f1score_batch_op,m_iou_batch_op])
 
-                    tf.initializers.variables(var_list=batch_vars)
+                        f1,auc_,iou = sess.run([f1score_batch,
+                                                auc_batch,
+                                                m_iou_batch])
+
+                        all_f1score.append(f1)
+                        all_auc.append(auc_)
+                        all_m_iou.append(iou)
+
+                        tf.initializers.variables(var_list=batch_vars)
+                    except:
+                        keep_going = False
 
                 f1score_,auc_,iou = sess.run([f1score,auc,m_iou])
                 averages = [np.mean(time_list),
