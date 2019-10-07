@@ -666,9 +666,9 @@ def main(mode,
                 keep_going = True
 
                 while keep_going == True:
-
                     try:
                         a = time.perf_counter()
+                        print(a)
                         n_images = sess.run([network]).shape[0]
                         b = time.perf_counter()
                         t_image = (b - a)/n_images
