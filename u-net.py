@@ -685,8 +685,11 @@ def main(mode,
                         all_m_iou.append(iou)
 
                         tf.initializers.variables(var_list=batch_vars)
+
                     except:
                         keep_going = False
+
+                print(all_f1score)
 
                 f1score_,auc_,iou = sess.run([f1score,auc,m_iou])
                 averages = [np.mean(time_list),
