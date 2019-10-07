@@ -504,41 +504,7 @@ def normal_image_generator(image_list,*mask_list,
 
 def prediction_image_generator(image_path_list):
     for image_path in image_path_list:
-        return np.array(Image.open(image_path))
-
-def tumble_image_generator(image_path_list):
-    """
-    Generates the 8 possible conformations for each image obtained through
-    flipping and rotating.
-
-    Arguments:
-    * image_path_list - a list of image paths
-    """
-    for image_path in image_path_list:
-        image = image_to_array(image_path)
-        yield image,image_path
-        for i in range(3):
-            rot = np.rot90(image)
-            yield rot,image_path
-        image = np.flipud(image)
-        for i in range(3):
-            rot = np.rot90(image)
-            yield rot,image_path
-
-def recover_from_rot(image,rot=1,flip=False):
-    """
-    Based on the tumble_image_generator, returns the original image based on
-    how many rotations it went through and whether it was flipped or not.
-
-    Arguments:
-    * image - a 2+-dimensional numpy array
-    * rot - number of rotations the image underwent
-    * flip - whether the image was flipped or not
-    """
-    if flip == True:
-        return np.flipud(np.rot90(image,-rot))
-    else:
-        return np.rot90(image,-rot)
+        yield np.array(Image.open(image_path)),image_path
 
 def generate_tiles(large_image,
                    input_height = 256,input_width = 256,
