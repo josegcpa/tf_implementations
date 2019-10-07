@@ -663,7 +663,7 @@ def main(mode,
                 all_m_iou = []
                 time_list = []
 
-                for batch,truth_batch in image_generator:
+                for _ in range(len(image_path_list) // batch_size + 1)::
                     n_images = len(batch)
                     batch = np.stack(batch,0)
                     truth_batch = np.stack(truth_batch,0)
