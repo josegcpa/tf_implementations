@@ -663,12 +663,7 @@ def main(mode,
                 all_m_iou = []
                 time_list = []
 
-                for _ in range(len(image_path_list) // batch_size + 1)::
-                    n_images = len(batch)
-                    batch = np.stack(batch,0)
-                    truth_batch = np.stack(truth_batch,0)
-
-
+                for _ in range(len(image_path_list) // batch_size + 1):
                     a = time.perf_counter()
                     n_images = sess.run([network]).shape[0]
                     b = time.perf_counter()
