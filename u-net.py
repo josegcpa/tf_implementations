@@ -553,7 +553,7 @@ def main(mode,
     np.random.seed(42)
 
     ckpt_exists = os.path.exists(checkpoint_path + '.index')
-
+    print(image_path_list)
     if len(image_path_list) > 0:
 
         if mode == 'train':
