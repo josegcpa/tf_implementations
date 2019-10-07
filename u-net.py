@@ -673,6 +673,7 @@ def main(mode,
                         b = time.perf_counter()
                         t_image = (b - a)/n_images
                         time_list.append(t_image)
+                        print(n_images)
                         sess.run([auc_op,f1score_op,m_iou_op,
                                   auc_batch_op,f1score_batch_op,m_iou_batch_op])
 
@@ -683,6 +684,8 @@ def main(mode,
                         all_f1score.append(f1)
                         all_auc.append(auc_)
                         all_m_iou.append(iou)
+
+                        print(t_image)
 
                         tf.initializers.variables(var_list=batch_vars)
 
