@@ -491,57 +491,58 @@ def main(mode,
         train_op = tf.group(train_op,class_train_op)
         loss = [loss,class_loss]
 
-    summaries = set(tf.get_collection(tf.GraphKeys.SUMMARIES))
+    if mode == 'train':
+        summaries = set(tf.get_collection(tf.GraphKeys.SUMMARIES))
 
-    for endpoint in endpoints:
-        x = endpoints[endpoint]
-        summaries.add(tf.summary.histogram('activations/' + endpoint, x))
+        for endpoint in endpoints:
+            x = endpoints[endpoint]
+            summaries.add(tf.summary.histogram('activations/' + endpoint, x))
 
-    for variable in slim.get_model_variables():
-        summaries.add(tf.summary.histogram(variable.op.name, variable))
+        for variable in slim.get_model_variables():
+            summaries.add(tf.summary.histogram(variable.op.name, variable))
 
-    if aux_node:
-        summaries.add(tf.summary.scalar('loss', loss[0]))
-        summaries.add(tf.summary.scalar('class_loss', class_loss))
-    else:
-        summaries.add(tf.summary.scalar('loss', loss))
-    summaries.add(tf.summary.scalar('f1score', f1score))
-    summaries.add(tf.summary.scalar('auc', auc))
+        if aux_node:
+            summaries.add(tf.summary.scalar('loss', loss[0]))
+            summaries.add(tf.summary.scalar('class_loss', class_loss))
+        else:
+            summaries.add(tf.summary.scalar('loss', loss))
+        summaries.add(tf.summary.scalar('f1score', f1score))
+        summaries.add(tf.summary.scalar('auc', auc))
 
-    summaries.add(
-        tf.summary.image('image',inputs_original,max_outputs = 4))
-    summaries.add(
-        tf.summary.image('image',inputs,max_outputs = 4))
-    summaries.add(
-        tf.summary.image('truth_image',
-                         tf.cast(
-                             tf.expand_dims(binarized_truth,-1),tf.float32),
-                         max_outputs = 4))
-    summaries.add(
-        tf.summary.image('weight_map',
-                         tf.expand_dims(weights,-1),
-                         max_outputs = 4))
-    summaries.add(
-        tf.summary.image(
-            'prediction',
-            tf.expand_dims(tf.nn.softmax(network,axis=3)[:,:,:,1],-1),
-            max_outputs = 4))
-    summaries.add(
-        tf.summary.image('prediction_binary',
-                         tf.cast(
-                             tf.expand_dims(binarized_network,-1),tf.float32),
-                         max_outputs = 4))
-    summaries.add(
-        tf.summary.image(
-            'compare_binary',
-            tf.stack(
-                [tf.cast(binarized_network,tf.float32),
-                 tf.cast(binarized_truth,tf.float32),
-                 tf.cast(tf.zeros_like(binarized_truth),tf.float32)],axis=-1),
-            max_outputs = 4)
-        )
+        summaries.add(
+            tf.summary.image('image',inputs_original,max_outputs = 4))
+        summaries.add(
+            tf.summary.image('image',inputs,max_outputs = 4))
+        summaries.add(
+            tf.summary.image('truth_image',
+                             tf.cast(
+                                 tf.expand_dims(binarized_truth,-1),tf.float32),
+                             max_outputs = 4))
+        summaries.add(
+            tf.summary.image('weight_map',
+                             tf.expand_dims(weights,-1),
+                             max_outputs = 4))
+        summaries.add(
+            tf.summary.image(
+                'prediction',
+                tf.expand_dims(tf.nn.softmax(network,axis=3)[:,:,:,1],-1),
+                max_outputs = 4))
+        summaries.add(
+            tf.summary.image('prediction_binary',
+                             tf.cast(
+                                 tf.expand_dims(binarized_network,-1),tf.float32),
+                             max_outputs = 4))
+        summaries.add(
+            tf.summary.image(
+                'compare_binary',
+                tf.stack(
+                    [tf.cast(binarized_network,tf.float32),
+                     tf.cast(binarized_truth,tf.float32),
+                     tf.cast(tf.zeros_like(binarized_truth),tf.float32)],axis=-1),
+                max_outputs = 4)
+            )
 
-    summary_op = tf.summary.merge(list(summaries), name='summary_op')
+        summary_op = tf.summary.merge(list(summaries), name='summary_op')
 
     init = tf.group(
         tf.global_variables_initializer(),
