@@ -172,7 +172,7 @@ def main(mode,
             )
     elif mode == 'test':
         is_training = False
-        output_types = (tf.uint8,tf.float32)
+        output_types = (tf.uint8,tf.float64)
         output_shapes = (
             [input_height,input_width,3],
             [input_height,input_width,n_classes]
@@ -244,13 +244,14 @@ def main(mode,
                 'input_height':input_height,
                 'input_width':input_width,
                 'n_classes':n_classes,
-                'truth_only':truth_only
+                'truth_only':truth_only,
+                'mode':mode
                 },
             output_types=output_types,
             output_shapes=output_shapes,
             is_training=is_training,
             buffer_size=500,
-            batch_size=4)
+            batch_size=batch_size)
 
     if epochs != None:
         number_of_steps = epochs * int(len(image_path_list)/batch_size)
@@ -268,18 +269,19 @@ def main(mode,
 
     if mode == 'test':
         inputs,truth = next_element
+        truth = tf.cast(truth,tf.float32)
         weights = tf.placeholder(tf.float32,
                                  [batch_size,input_height,input_width,1])
 
     if mode == 'predict':
-        inputs = next_element,image_name
+        inputs,image_names = next_element
         truth = tf.placeholder(tf.float32,
                                [batch_size,input_height,input_width,n_classes])
         weights = tf.placeholder(tf.float32,
                                  [batch_size,input_height,input_width,1])
 
     if mode == 'tumble_predict':
-        inputs = next_element,image_name
+        inputs,image_names = next_element
         flipped_inputs = tf.image.flip_left_right(inputs)
         inputs = tf.concat(
             [inputs,
@@ -289,16 +291,17 @@ def main(mode,
              flipped_inputs,
              tf.image.rot90(flipped_inputs,1),
              tf.image.rot90(flipped_inputs,2),
-             tf.image.rot90(flipped_inputs,3)]
+             tf.image.rot90(flipped_inputs,3)],
+            axis=0
         )
         truth = tf.concat([
             tf.placeholder(tf.float32,
                            [batch_size,input_height,
-                            input_width,n_classes]) for _ in range(8)])
+                            input_width,n_classes]) for _ in range(8)],axis=0)
         weights = tf.concat([
             tf.placeholder(tf.float32,
                            [batch_size,input_height,
-                           input_width,1]) for _ in range(8)])
+                           input_width,1]) for _ in range(8)],axis=0)
 
     elif mode == 'large_predict':
         inputs,large_image_path,large_image_coords,batch_shape = next_element
@@ -546,7 +549,8 @@ def main(mode,
 
     init = tf.group(
         tf.global_variables_initializer(),
-        tf.local_variables_initializer()
+        tf.local_variables_initializer(),
+        tf.tables_initializer()
         )
 
     tf.set_random_seed(0)
@@ -667,32 +671,33 @@ def main(mode,
 
                 while keep_going == True:
                     try:
+
                         a = time.perf_counter()
-                        print(a)
-                        n_images = sess.run([network]).shape[0]
+
+                        img,_,(f1,auc_,iou) = sess.run(
+                            [network,
+                             (auc_op,f1score_op,m_iou_op,
+                              auc_batch_op,
+                              f1score_batch_op,
+                              m_iou_batch_op),
+                             (f1score_batch,
+                              auc_batch,
+                              m_iou_batch)])
+
+                        n_images = img.shape[0]
+
                         b = time.perf_counter()
                         t_image = (b - a)/n_images
                         time_list.append(t_image)
-                        print(n_images)
-                        sess.run([auc_op,f1score_op,m_iou_op,
-                                  auc_batch_op,f1score_batch_op,m_iou_batch_op])
-
-                        f1,auc_,iou = sess.run([f1score_batch,
-                                                auc_batch,
-                                                m_iou_batch])
 
                         all_f1score.append(f1)
                         all_auc.append(auc_)
                         all_m_iou.append(iou)
 
-                        print(t_image)
-
                         tf.initializers.variables(var_list=batch_vars)
 
                     except:
                         keep_going = False
-
-                print(all_f1score)
 
                 f1score_,auc_,iou = sess.run([f1score,auc,m_iou])
                 averages = [np.mean(time_list),
@@ -744,26 +749,33 @@ def main(mode,
 
                 time_list = []
 
-                for _ in range(len(image_path_list) // batch_size + 1):
+                keep_going = True
 
-                    a = time.perf_counter()
-                    prediction = sess.run(prob_network,image_names)
-                    n_images = prediction.shape[0]
-                    b = time.perf_counter()
-                    t_image = (b - a)/n_images
-                    time_list.append(t_image)
+                while keep_going == True:
 
-                    output = LOG.format(n_images,b - a,t_image)
-                    log_write_print(log_file,output)
+                    try:
+                        a = time.perf_counter()
+                        prediction,im_names = sess.run([prob_network,
+                                                        image_names])
+                        n_images = prediction.shape[0]
+                        b = time.perf_counter()
+                        t_image = (b - a)/n_images
+                        time_list.append(t_image)
 
-                    for i in range(prediction.shape[0]):
-                        image = prediction[i,:,:]
-                        image_name = image_names[i].split(os.sep)[-1]
-                        image_name = image_name.split('.')[0]
-                        image_name = image_name + '.tif'
-                        image_output = os.path.join(prediction_output,
-                                                    image_name)
-                        tiff.imsave(image_output,image)
+                        output = LOG.format(n_images,b - a,t_image)
+                        log_write_print(log_file,output)
+
+                        for i in range(prediction.shape[0]):
+                            image = prediction[i,:,:]
+                            image_name = im_names[i].decode().split(os.sep)[-1]
+                            image_name = image_name.split('.')[0]
+                            image_name = image_name + '.tif'
+                            image_output = os.path.join(prediction_output,
+                                                        image_name)
+                            tiff.imsave(image_output,image)
+
+                    except:
+                        keep_going = False
 
                 avg_time = np.mean(time_list)
                 output = FINAL_LOG.format(avg_time)
@@ -775,20 +787,22 @@ def main(mode,
             LOG = 'Time/{0:d} images: {1:f}s (time/1 image: {2:f}s).'
             FINAL_LOG = 'Average time/image: {0:f}'
 
-            prob_network = tf.nn.softmax(network)[:,:,:,1]
+            prob_network = tf.expand_dims(
+                tf.nn.softmax(network)[:,:,:,1],
+                axis=-1)
             flipped_prob_network = prob_network[4:,:,:]
             prob_network = prob_network[:4,:,:]
             prob_network = tf.stack([
                 prob_network[0,:,:],
-                prob_network[1,:,:],
-                prob_network[2,:,:],
-                prob_network[3,:,:],
+                tf.image.rot90(prob_network[1,:,:],-1),
+                tf.image.rot90(prob_network[2,:,:],-2),
+                tf.image.rot90(prob_network[3,:,:],-3),
                 flipped_prob_network[0,:,:],
-                flipped_prob_network[1,:,:],
-                flipped_prob_network[2,:,:],
-                flipped_prob_network[3,:,:]
+                tf.image.rot90(flipped_prob_network[1,:,:],-1),
+                tf.image.rot90(flipped_prob_network[2,:,:],-2),
+                tf.image.rot90(flipped_prob_network[3,:,:],-3),
             ])
-            prob_network = tf.reduce_mean(prob_network,axis=0)
+            prob_network = tf.reduce_mean(prob_network,axis=0,keepdims=True)
 
             with tf.Session() as sess:
                 try:
@@ -801,26 +815,34 @@ def main(mode,
 
                 time_list = []
 
-                for _ in range(len(image_path_list) // batch_size + 1):
+                keep_going = True
 
-                    a = time.perf_counter()
-                    prediction = sess.run(prob_network,image_names)
-                    n_images = prediction.shape[0]
-                    b = time.perf_counter()
-                    t_image = (b - a)/n_images
-                    time_list.append(t_image)
+                while keep_going == True:
 
-                    output = LOG.format(n_images,b - a,t_image)
-                    log_write_print(log_file,output)
+                    try:
 
-                    for i in range(prediction.shape[0]):
-                        image = prediction[i,:,:]
-                        image_name = image_names[i].split(os.sep)[-1]
-                        image_name = image_name.split('.')[0]
-                        image_name = image_name + '.tif'
-                        image_output = os.path.join(prediction_output,
-                                                    image_name)
-                        tiff.imsave(image_output,image)
+                        a = time.perf_counter()
+                        prediction,im_names = sess.run([prob_network,
+                                                        image_names])
+                        n_images = prediction.shape[0]
+                        b = time.perf_counter()
+                        t_image = (b - a)/n_images
+                        time_list.append(t_image)
+
+                        output = LOG.format(n_images,b - a,t_image)
+                        log_write_print(log_file,output)
+
+                        for i in range(prediction.shape[0]):
+                            image = prediction[i,:,:]
+                            image_name = im_names[i].decode().split(os.sep)[-1]
+                            image_name = image_name.split('.')[0]
+                            image_name = image_name + '.tif'
+                            image_output = os.path.join(prediction_output,
+                                                        image_name)
+                            tiff.imsave(image_output,image)
+
+                    except:
+                        keep_going = False
 
                 avg_time = np.mean(time_list)
                 output = FINAL_LOG.format(avg_time)

@@ -504,7 +504,7 @@ def normal_image_generator(image_list,*mask_list,
 
 def prediction_image_generator(image_path_list):
     for image_path in image_path_list:
-        yield np.array(Image.open(image_path)),image_path
+        yield np.array(Image.open(image_path)),os.path.basename(image_path)
 
 def generate_tiles(large_image,
                    input_height = 256,input_width = 256,
@@ -702,8 +702,10 @@ def generate_images(image_path_list,truth_path,
             random=False,eternal=False
         )
 
-    elif mode == 'predict':
+    elif mode == 'predict' or mode == 'tumble_predict':
         generator = prediction_image_generator(image_path_list)
+        for image,image_path in generator:
+            yield image,image_path
 
     elif mode == 'large_predict':
         batch_paths = []
@@ -731,7 +733,12 @@ def generate_images(image_path_list,truth_path,
                 shape = img.shape
                 yield image,large_image_path,(x,y),batch_shape
 
-    while True:
+    if mode == 'train':
+        while True:
+            for element in generator:
+                element = tuple(x for x in element[:-1])
+                yield element
+    else:
         for element in generator:
             element = tuple(x for x in element[:-1])
             yield element
@@ -789,7 +796,8 @@ def generate_images_propagation(
             truth_list.append(truth_img)
             weight_map_list.append(weight_map[:,:,np.newaxis])
 
-        generator = normal_image_generator(image_list,truth_list,weight_map_list)
+        generator = normal_image_generator(image_list,truth_list,
+                                           weight_map_list)
 
         while True:
             for element in generator:
@@ -887,7 +895,8 @@ def tf_dataset_from_generator(generator,generator_params,
 
     if is_training == True:
         dataset = dataset.repeat()
-    dataset = dataset.shuffle(buffer_size=buffer_size)
+        dataset = dataset.shuffle(buffer_size=buffer_size)
+
     dataset = dataset.batch(batch_size)
     iterator = dataset.make_one_shot_iterator()
     return iterator.get_next()
