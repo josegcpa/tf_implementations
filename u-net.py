@@ -422,13 +422,13 @@ def main(mode,
         prediction_network = prediction_network[:4,:,:]
         prediction_network = tf.stack([
             prediction_network[0,:,:,:],
-            tf.image.rot90(network[1,:,:,:],-1),
-            tf.image.rot90(network[2,:,:,:],-2),
-            tf.image.rot90(network[3,:,:,:],-3),
-            prediction_network[0,:,:,:],
-            tf.image.rot90(flipped_network[1,:,:,:],-1),
-            tf.image.rot90(flipped_network[2,:,:,:],-2),
-            tf.image.rot90(flipped_network[3,:,:,:],-3),
+            tf.image.rot90(prediction_network[1,:,:,:],-1),
+            tf.image.rot90(prediction_network[2,:,:,:],-2),
+            tf.image.rot90(prediction_network[3,:,:,:],-3),
+            flipped_prediction[0,:,:,:],
+            tf.image.rot90(flipped_prediction[1,:,:,:],-1),
+            tf.image.rot90(flipped_prediction[2,:,:,:],-2),
+            tf.image.rot90(flipped_prediction[3,:,:,:],-3),
         ])
         prediction_network = tf.reduce_mean(network,axis=0,keepdims=True)
         binarized_network = tf.where(network > 0.5,
