@@ -233,7 +233,7 @@ def main(mode,
 
     else:
         if 'tumble' in mode:
-            gen_mode = mode.strip('tumble_')
+            gen_mode = mode.replace('tumble_','')
         else:
             gen_mode = mode
         print(gen_mode)
