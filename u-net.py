@@ -429,10 +429,12 @@ def main(mode,
             tf.image.rot90(flipped_prediction[2,:,:,:],-2),
             tf.image.rot90(flipped_prediction[3,:,:,:],-3),
         ])
-        prediction_network = tf.reduce_mean(network,axis=0,keepdims=True)
-        binarized_network = tf.where(network > 0.5,
-                                     tf.ones_like(binarized_network),
-                                     tf.zeros_like(binarized_network))
+        prediction_network = tf.reduce_mean(prediction_network,
+                                            axis=0,
+                                            keepdims=True)
+        binarized_network = tf.where(prediction_network > 0.5,
+                                     tf.ones_like(prediction_network),
+                                     tf.zeros_like(prediction_network))
 
     auc, auc_op = tf.metrics.auc(
         binarized_truth,
