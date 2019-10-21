@@ -376,7 +376,7 @@ def main(mode,
 
     if 'tumble' in mode:
         flipped_prediction = prediction_network[4:,:,:,:]
-        prediction_network = tf.image.flip_left_rigt(
+        prediction_network = tf.image.flip_left_right(
             prediction_network[:4,:,:])
         prediction_network = tf.stack([
             prediction_network[0,:,:,:],
