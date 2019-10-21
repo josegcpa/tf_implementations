@@ -236,7 +236,7 @@ def main(mode,
             gen_mode = mode.replace('tumble_','')
         else:
             gen_mode = mode
-        print(gen_mode)
+
         next_element = tf_dataset_from_generator(
             generator=generate_images,
             generator_params={
@@ -648,15 +648,6 @@ def main(mode,
 
                 while keep_going == True:
 
-                    img,_,(f1,auc_,iou) = sess.run(
-                        [network,
-                         (auc_op,f1score_op,m_iou_op,
-                          auc_batch_op,
-                          f1score_batch_op,
-                          m_iou_batch_op),
-                         (f1score_batch,
-                          auc_batch,
-                          m_iou_batch)])
                     try:
                         a = time.perf_counter()
                         img,_,(f1,auc_,iou) = sess.run(
