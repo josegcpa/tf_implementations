@@ -380,9 +380,9 @@ def main(mode,
         tf.nn.softmax(network,axis=3)[:,:,:,1],-1)
 
     if 'tumble' in mode:
-        flipped_prediction = prediction_network[4:,:,:,:]
+        flipped_prediction = tf.image.flip_left_right(
+            prediction_network[4:,:,:,:])
         prediction_network = prediction_network[:4,:,:,:]
-        flipped_prediction = tf.image.flip_left_right(flipped_prediction)
 
         prediction_network = tf.stack([
             prediction_network[0,:,:,:],
