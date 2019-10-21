@@ -391,11 +391,11 @@ def main(mode,
             flipped_prediction[0,:,:,:],
             tf.image.rot90(flipped_prediction[1,:,:,:],-1),
             tf.image.rot90(flipped_prediction[2,:,:,:],-2),
-            tf.image.rot90(flipped_prediction[3,:,:,:],-3),
-        ])
+            tf.image.rot90(flipped_prediction[3,:,:,:],-3)],axis=0)
         prediction_network = tf.reduce_mean(prediction_network,
                                             axis=0,
                                             keepdims=True)
+        print(prediction_network)
         binarized_network = tf.where(prediction_network > 0.5,
                                      tf.ones_like(prediction_network),
                                      tf.zeros_like(prediction_network))
