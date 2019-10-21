@@ -621,7 +621,7 @@ def main(mode,
                 log_write_print(log_file,
                                 CHECKPOINT.format(i,CHECKPOINT_PATH))
 
-        elif mode == 'test' and ckpt_exists:
+        elif 'test' in mode and ckpt_exists:
             LOG = 'Time/{0:d} images: {1:f}s (time/1 image: {2:f}s). '
             LOG += 'F1-Score: {3:f}; AUC: {4:f}; MeanIOU: {5:f}'
 
