@@ -25,7 +25,7 @@ Training example:
     --log_every_n_steps 5 \
     --input_height 512 \
     --input_width 512 \
-    --n_classes 2 \
+    --n_directions 2 \
     --number_of_steps 3120 \
     --save_checkpoint_folder split_512/checkpoint_residuals \
     --save_summary_folder split_512/summary_residuals \
@@ -92,7 +92,7 @@ def main(mode,
          extension,
          input_height,
          input_width,
-         n_classes,
+         n_directions,
          trial,
          aux_node):
 
@@ -135,7 +135,7 @@ def main(mode,
     * extension - extension for the images
     * input_height - height of the input image
     * input_width - width of the input image
-    * n_classes - no. of classes (currently only supports 2/3)
+    * n_directions - no. of directions for the affinities
     """
 
     log_write_print(log_file,'INPUT ARGUMENTS:')
@@ -167,17 +167,20 @@ def main(mode,
         output_types = (tf.uint8,tf.float32,tf.float32)
         output_shapes = (
             [input_height,input_width,3],
-            [input_height,input_width,n_classes],
-            [input_height,input_width,1]
+            [input_height,input_width,n_directions * 8]
             )
-    elif 'test' in mode:
+    elif mode == 'test':
         is_training = False
         output_types = (tf.uint8,tf.float64)
         output_shapes = (
             [input_height,input_width,3],
-            [input_height,input_width,n_classes]
+            [input_height,input_width,n_directions * 8]
             )
-    elif 'predict' in mode:
+    elif mode == 'predict':
+        is_training = False
+        output_types = tf.uint8,tf.string
+        output_shapes = ([input_height,input_width,3],[])
+    elif mode == 'tumble_predict':
         is_training = False
         output_types = tf.uint8,tf.string
         output_shapes = ([input_height,input_width,3],[])
@@ -203,13 +206,9 @@ def main(mode,
                 features['image'],tf.uint8)
             mask = tf.decode_raw(
                 features['mask'],tf.uint8)
-            weights = tf.decode_raw(
-                features['weight_mask'],tf.float64)
 
             image = tf.reshape(image,[input_height, input_width, 3])
-            mask = tf.reshape(mask,[input_height, input_width, n_classes])
-            weights = tf.reshape(weights,[input_height, input_width, 1])
-            weights = tf.cast(weights,tf.float32)
+
             return image,mask,weights
 
         files = tf.data.Dataset.list_files(
@@ -253,60 +252,24 @@ def main(mode,
         number_of_steps = epochs * int(len(image_path_list)/batch_size)
 
     if mode == 'train':
-        inputs,truth,weights = next_element
+        inputs,truth = next_element
 
         IA = tf_da.ImageAugmenter(**data_augmentation_params)
         inputs_original = inputs
         inputs,truth,weights = tf.map_fn(
             lambda x: IA.augment(x[0],x[1],x[2]),
-            [inputs,truth,weights],
+            [inputs,truth],
             (tf.float32,tf.float32,tf.float32)
             )
 
     if mode == 'test':
         inputs,truth = next_element
         truth = tf.cast(truth,tf.float32)
-        weights = tf.placeholder(tf.float32,
-                                 [batch_size,input_height,input_width,1])
-
-    if mode == 'tumble_test':
-        inputs,truth = next_element
-        flipped_inputs = tf.image.flip_left_right(inputs)
-        flipped_truth = tf.image.flip_left_right(truth)
-        inputs = tf.concat(
-            [inputs,
-             tf.image.rot90(inputs,1),
-             tf.image.rot90(inputs,2),
-             tf.image.rot90(inputs,3),
-             flipped_inputs,
-             tf.image.rot90(flipped_inputs,1),
-             tf.image.rot90(flipped_inputs,2),
-             tf.image.rot90(flipped_inputs,3)],
-            axis=0
-        )
-        truth = tf.concat(
-            [inputs,
-             tf.image.rot90(truth,1),
-             tf.image.rot90(truth,2),
-             tf.image.rot90(truth,3),
-             flipped_inputs,
-             tf.image.rot90(flipped_truth,1),
-             tf.image.rot90(flipped_truth,2),
-             tf.image.rot90(flipped_truth,3)],
-            axis=0
-        )
-        weights = tf.concat([
-            tf.placeholder(tf.float32,
-                           [batch_size,input_height,
-                           input_width,1]) for _ in range(8)],axis=0)
-
 
     if mode == 'predict':
         inputs,image_names = next_element
         truth = tf.placeholder(tf.float32,
                                [batch_size,input_height,input_width,n_classes])
-        weights = tf.placeholder(tf.float32,
-                                 [batch_size,input_height,input_width,1])
 
     if mode == 'tumble_predict':
         inputs,image_names = next_element
@@ -326,17 +289,11 @@ def main(mode,
             tf.placeholder(tf.float32,
                            [batch_size,input_height,
                             input_width,n_classes]) for _ in range(8)],axis=0)
-        weights = tf.concat([
-            tf.placeholder(tf.float32,
-                           [batch_size,input_height,
-                           input_width,1]) for _ in range(8)],axis=0)
 
     elif mode == 'large_predict':
         inputs,large_image_path,large_image_coords,batch_shape = next_element
         truth = tf.placeholder(tf.float32,
                                [batch_size,input_height,input_width,n_classes])
-        weights = tf.placeholder(tf.float32,
-                                 [batch_size,input_height,input_width,1])
 
     inputs = tf.image.convert_image_dtype(inputs,tf.float32)
 
@@ -345,7 +302,6 @@ def main(mode,
         tf_shape = [None,net_x,net_y,n_classes]
         if training == True:
             truth = truth[:,92:(input_height - 92),92:(input_width - 92),:]
-            weights = weights[:,92:(input_height - 92),92:(input_width - 92),:]
         crop = True
 
     else:
@@ -356,13 +312,8 @@ def main(mode,
                 truth = tf.image.resize_bilinear(
                     truth,
                     [resize_height,resize_width])
-                weights = tf.image.resize_bilinear(
-                    weights,
-                    [resize_height,resize_width])
         net_x,net_y = (None, None)
         crop = False
-
-    weights = tf.squeeze(weights,axis=-1)
 
     network,endpoints,classifications = u_net(
         inputs,
@@ -371,7 +322,7 @@ def main(mode,
         factorization=factorization,
         residuals=residuals,
         beta=beta_l2_regularization,
-        n_classes=n_classes,
+        n_classes=n_directions * 8,
         resize=resize,
         resize_height=resize_height,
         resize_width=resize_width,
@@ -379,21 +330,6 @@ def main(mode,
         aux_node=aux_node,
         squeeze_and_excite=squeeze_and_excite
         )
-
-    if 'tumble' in mode:
-        flipped_network = network[4:,:,:,:]
-        network = network[:4,:,:]
-        network = tf.stack([
-            network[0,:,:,:],
-            tf.image.rot90(network[1,:,:,:],-1),
-            tf.image.rot90(network[2,:,:,:],-2),
-            tf.image.rot90(network[3,:,:,:],-3),
-            flipped_network[0,:,:,:],
-            tf.image.rot90(flipped_network[1,:,:,:],-1),
-            tf.image.rot90(flipped_network[2,:,:,:],-2),
-            tf.image.rot90(flipped_network[3,:,:,:],-3),
-        ])
-        network = tf.reduce_mean(network,axis=0,keepdims=True)
 
     log_write_print(log_file,
                     'Total parameters: {0:d} (trainable: {1:d})\n'.format(
@@ -404,69 +340,49 @@ def main(mode,
     saver = tf.train.Saver()
     loading_saver = tf.train.Saver()
 
-    #Loss function
-    if n_classes == 3:
-        class_balancing = tf.stack(
-            [tf.ones_like(truth[:,:,:,0])/tf.reduce_sum(truth[:,:,:,0]),
-             tf.ones_like(truth[:,:,:,1])/tf.reduce_sum(truth[:,:,:,1]),
-             tf.ones_like(truth[:,:,:,2])/tf.reduce_sum(truth[:,:,:,2])],
-            axis=3
-            )
+    network_plus = network[:,:,:,:(n_directions*4)]
+    network_minus = network[:,:,:,(n_directions*4):]
+    truth_plus = truth[:,:,:,:(n_directions*4)]
+    truth_minus = truth[:,:,:,(n_directions*4):]
 
-    elif n_classes == 2:
-        class_balancing = tf.stack(
-            [tf.ones_like(truth[:,:,:,0])/tf.reduce_sum(truth[:,:,:,0]),
-             tf.ones_like(truth[:,:,:,1])/tf.reduce_sum(truth[:,:,:,1])],
-            axis=3
-            )
-
-    if iglovikov == True:
-        loss = iglovikov_loss(truth,network)
-
-    else:
-        loss = tf.nn.sigmoid_cross_entropy_with_logits(
-            labels=truth,
-            logits=network)# * class_balancing
-        loss = tf.reduce_sum(loss,axis=3) * weights
-        loss = tf.reduce_mean(loss)
+    j_plus = tf.divide(
+        tf.reduce_sum(
+            tf.multiply(
+                1 - network_plus,
+                1 - truth_plus
+            ),axis=[1,2]
+        ),
+        tf.reduce_sum(
+            tf.add(
+                tf.square(1 - network_plus),
+                tf.square(1 - truth_plus)
+            ),axis=[1,2]
+        )
+        )
+    j_minus = tf.divide(
+        tf.reduce_sum(
+            tf.multiply(
+                network_minus,
+                truth_minus
+            ),axis=[1,2]
+        ),
+        tf.reduce_sum(
+            tf.add(
+                tf.square(network_minus),
+                tf.square(truth_minus)
+            ),axis=[1,2]
+        )
+        )
+    loss = tf.reduce_sum(j_plus,axis=-1) + tf.reduce_sum(j_minus,axis=-1)
+    loss = tf.reduce_mean(loss,name='loss')
 
     if beta_l2_regularization > 0:
         reg_losses = slim.losses.get_regularization_losses()
         loss = loss + tf.add_n(reg_losses) / len(reg_losses)
 
-    #Evaluation metrics
-    if n_classes == 3:
-        bg = network[:,:,:,0]
-        fg = network[:,:,:,1]
-        ct = network[:,:,:,2]
-        binarized_network = tf.where(
-            fg > bg,
-            tf.ones_like(fg),
-            tf.zeros_like(bg)
-        )
-        binarized_network = tf.where(
-            fg > ct,
-            binarized_network,
-            tf.zeros_like(ct)
-        )
-
-        prediction_network = tf.stack([bg,fg],axis=3)
-        prediction_network = tf.nn.softmax(prediction_network,axis=3)[:,:,:,1]
-        prediction_network = tf.where(
-            ct > fg,
-            tf.zeros_like(fg),
-            fg
-        )
-        binarized_truth = tf.where(
-            truth[:,:,:,1] > truth[:,:,:,0],
-            tf.ones_like(truth[:,:,:,1]),
-            tf.zeros_like(truth[:,:,:,0])
-        )
-
-    elif n_classes == 2:
-        binarized_truth = tf.argmax(truth,axis = 3)
-        binarized_network = tf.argmax(network,axis = 3)
-        prediction_network = tf.nn.softmax(network,axis=3)[:,:,:,1]
+    binarized_truth = tf.argmax(truth,axis = 3)
+    binarized_network = tf.argmax(network,axis = 3)
+    prediction_network = tf.nn.softmax(network,axis=3)[:,:,:,1]
 
     auc, auc_op = tf.metrics.auc(
         binarized_truth,
@@ -474,10 +390,7 @@ def main(mode,
     f1score,f1score_op = tf.contrib.metrics.f1_score(
         binarized_truth,
         binarized_network)
-    m_iou,m_iou_op = tf.metrics.mean_iou(
-        labels=binarized_truth,
-        predictions=binarized_network,
-        num_classes=2)
+
     auc_batch, auc_batch_op = tf.metrics.auc(
         binarized_truth,
         binarized_network,
@@ -486,11 +399,6 @@ def main(mode,
         binarized_truth,
         binarized_network,
         name='f1_batch')
-    m_iou_batch,m_iou_batch_op = tf.metrics.mean_iou(
-        labels=binarized_truth,
-        predictions=binarized_network,
-        num_classes=2,
-        name='m_iou_batch')
 
     batch_vars = [v for v in tf.local_variables()]
     batch_vars = [v for v in batch_vars if 'batch' in v.name]
@@ -774,14 +682,13 @@ def main(mode,
                                max_ci[3],stds[3]))
                 log_write_print(log_file,output)
 
-        elif 'predict' in mode and ckpt_exists:
+        elif mode == 'predict' and ckpt_exists:
             print('Predicting...')
 
             LOG = 'Time/{0:d} images: {1:f}s (time/1 image: {2:f}s).'
             FINAL_LOG = 'Average time/image: {0:f}'
 
             prob_network = tf.nn.softmax(network)[:,:,:,1]
-
             with tf.Session() as sess:
                 try:
                     os.makedirs(prediction_output)
@@ -825,14 +732,28 @@ def main(mode,
                 output = FINAL_LOG.format(avg_time)
                 log_write_print(log_file,output)
 
-        """
         elif mode == 'tumble_predict' and ckpt_exists:
             print('Predicting...')
 
             LOG = 'Time/{0:d} images: {1:f}s (time/1 image: {2:f}s).'
             FINAL_LOG = 'Average time/image: {0:f}'
 
-            prob_network = tf.nn.softmax(network)[:,:,:,1]
+            prob_network = tf.expand_dims(
+                tf.nn.softmax(network)[:,:,:,1],
+                axis=-1)
+            flipped_prob_network = prob_network[4:,:,:]
+            prob_network = prob_network[:4,:,:]
+            prob_network = tf.stack([
+                prob_network[0,:,:],
+                tf.image.rot90(prob_network[1,:,:],-1),
+                tf.image.rot90(prob_network[2,:,:],-2),
+                tf.image.rot90(prob_network[3,:,:],-3),
+                flipped_prob_network[0,:,:],
+                tf.image.rot90(flipped_prob_network[1,:,:],-1),
+                tf.image.rot90(flipped_prob_network[2,:,:],-2),
+                tf.image.rot90(flipped_prob_network[3,:,:],-3),
+            ])
+            prob_network = tf.reduce_mean(prob_network,axis=0,keepdims=True)
 
             with tf.Session() as sess:
                 try:
@@ -877,7 +798,6 @@ def main(mode,
                 avg_time = np.mean(time_list)
                 output = FINAL_LOG.format(avg_time)
                 log_write_print(log_file,output)
-        """
 
         elif mode == 'large_predict' and ckpt_exists:
             print('Predicting large image...')

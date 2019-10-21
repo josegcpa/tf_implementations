@@ -743,6 +743,180 @@ def generate_images(image_path_list,truth_path,
             element = tuple(x for x in element[:-1])
             yield element
 
+def generate_images_affinity(
+    image_path_list,truth_path,
+    input_height = 256,input_width = 256,
+    padding = 'VALID',n_classes = 2,
+    truth_only = False,
+    weight_maps = True,
+    mode = 'train'):
+
+    """
+    Multi-purpose image generator for affinity calculation.
+
+    Arguments [default]:
+    * image_path_list - a list of image paths
+    * truth_path - a list of ground truth image paths
+    * net_x - output height for the network [None]
+    * net_y - output width for the network [None]
+    * input_height - input height for the network [256]
+    * input_width - input width for the network [256]
+    * padding - whether VALID or SAME padding should be used ['VALID']
+    * n_classes - no. of classes [2]
+    * truth_only - whether only positive images should be used [False]
+    * mode - algorithm mode [train].
+    """
+
+    def image_to_nearby_pixels(image,directions=[1]):
+        image_shape = image.shape
+        output = np.zeros([image_shape[0],image_shape[1],len(directions) * 4])
+
+        for i,direction in enumerate(directions):
+            padded_mask = np.pad(image,pad_width=direction,mode='reflect')
+            index_list = [
+                [0,image_shape[0]],
+                [2*direction,image_shape[0] + 2*direction],
+                [0,image_shape[1]],
+                [2*direction,image_shape[1] + 2*direction]
+            ]
+            original_image_index_x = [direction,image_shape[0]+direction]
+            original_image_index_y = [direction,image_shape[1]+direction]
+            output[:,:,0 * i] = padded_mask[
+                index_list[0][0]:index_list[0][1],
+                original_image_index_y[0]:original_image_index_y[1]]
+            output[:,:,1 * i] = padded_mask[
+                index_list[1][0]:index_list[1][1],
+                original_image_index_y[0]:original_image_index_y[1]]
+            output[:,:,2 * i] = padded_mask[
+                original_image_index_x[0]:original_image_index_x[1],
+                index_list[2][0]:index_list[2][1]]
+            output[:,:,3 * i] = padded_mask[
+                original_image_index_x[0]:original_image_index_x[1],
+                index_list[3][0]:index_list[3][1]]
+
+        return output
+
+    def nearby_pixels_to_affinity(image,nearby_pixels_image):
+        if len(image.shape) == 2:
+            image=np.expand_dims(image,axis=2)
+
+        affinity_mask = np.float32(nearby_pixels_image == image_shape)
+
+        return affinity_mask
+
+    def check_size(image_path):
+        size = Image.open(image_path).size
+        return np.all([size[0] == input_height,size[1] == input_width])
+
+    image_path_list = [x for x in image_path_list if check_size(x) == True]
+
+    if mode == 'train':
+        image_list = []
+        truth_list = []
+
+        for i,image_path in enumerate(image_path_list):
+            class_array = np.array([-1 for i in range(n_classes)])
+            if i % 5 == 0: print(i)
+            image_name = image_path.split(os.sep)[-1]
+            truth_image_path = truth_path + os.sep + image_name
+            truth_img = image_to_array(truth_image_path)
+
+            #assigns a class for edges
+            if len(truth_img.shape) == 3:
+                truth_img = np.mean(truth_img,axis=2)
+
+            nearby_pixels_image = image_to_nearby_pixels(truth_img,
+                                                         [1,3,5,7,9,11])
+            truth_img = nearby_pixels_to_affinity(truth_img,
+                                                  nearby_pixels_image)
+            truth_img = np.concatenate(
+                [truth_img, 1 - truth_img],
+                axis=-1
+            )
+            
+            image_list.append(image_to_array(image_path))
+            truth_list.append(truth_img)
+
+        generator = normal_image_generator(
+            image_list,truth_list,
+            classification_list=None,
+            random=True,eternal=True
+        )
+
+    elif mode == 'test':
+        image_list = []
+        truth_list = []
+
+        for i,image_path in enumerate(image_path_list):
+            class_array = np.array([-1 for i in range(n_classes)])
+            if i % 5 == 0: print(i)
+            image_name = image_path.split(os.sep)[-1]
+            truth_image_path = truth_path + os.sep + image_name
+            truth_img = image_to_array(truth_image_path)
+
+            #assigns a class for edges
+            if len(truth_img.shape) == 3:
+                truth_img = np.mean(truth_img,axis=2)
+
+            nearby_pixels_image = image_to_nearby_pixels(truth_img,
+                                                         [1,3,5,7,9,11])
+            truth_img = nearby_pixels_to_affinity(truth_img,
+                                                  nearby_pixels_image)
+            truth_img = np.concatenate(
+                [truth_img, 1 - truth_img],
+                axis=-1
+            )
+
+            image_list.append(image_to_array(image_path))
+            truth_list.append(truth_img)
+
+        generator = normal_image_generator(
+            image_list,truth_list,
+            classification_list=None,
+            random=False,eternal=False
+        )
+
+    elif mode == 'predict' or mode == 'tumble_predict':
+        generator = prediction_image_generator(image_path_list)
+        for image,image_path in generator:
+            yield image,image_path
+
+    elif mode == 'large_predict':
+        batch_paths = []
+        batch_coord = []
+        batch_shape = []
+        for large_image_path in image_path_list:
+            large_image = np.array(
+                Image.open(large_image_path)
+                )
+            generator = generate_tiles(
+                large_image,
+                input_height = input_height,
+                input_width = input_width,
+                padding = padding
+                )
+
+            for img,x,y in generator:
+                img = (img - np.min(img)) / (np.max(img) - np.min(img))
+                if len(batch) >= batch_size:
+                    batch = []
+                    batch_paths = []
+                    batch_coord = []
+                    batch_shape = []
+
+                shape = img.shape
+                yield image,large_image_path,(x,y),batch_shape
+
+    if mode == 'train':
+        while True:
+            for element in generator:
+                element = tuple(x for x in element[:-1])
+                yield element
+    else:
+        for element in generator:
+            element = tuple(x for x in element[:-1])
+            yield element
+
 def generate_images_propagation(
     image_path_list,truth_path,propagation_path,
     batch_size=4,
