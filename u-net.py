@@ -652,7 +652,7 @@ def main(mode,
                     try:
                         a = time.perf_counter()
                         img,images,_,(f1,auc_,iou) = sess.run(
-                            [network,
+                            [prediction_network,
                              inputs,
                              (auc_op,f1score_op,m_iou_op,
                               auc_batch_op,
@@ -664,9 +664,9 @@ def main(mode,
 
                         try: os.makedirs('tmp')
                         except: pass
-                        for i,(out,inp) in enumerate(zip(img,images)):
+                        for i,inp in enumerate(images):
                             tiff.imsave('tmp/{}.tif'.format(i),inp)
-                            tiff.imsave('tmp/{}_out.tif'.format(i),out)
+                            tiff.imsave('tmp/{}_out.tif'.format(i),img)
                         n_images = img.shape[0]
 
                         b = time.perf_counter()
