@@ -395,12 +395,14 @@ def main(mode,
         prediction_network = tf.reduce_mean(prediction_network,
                                             axis=0,
                                             keepdims=True)
-        print(prediction_network)
+
         binarized_network = tf.where(prediction_network > 0.5,
                                      tf.ones_like(prediction_network),
                                      tf.zeros_like(prediction_network))
 
         binarized_truth = tf.expand_dims(binarized_truth,axis=-1)
+
+        print(prediction_network,binarized_network,binarized_truth)
 
     auc, auc_op = tf.metrics.auc(
         binarized_truth,
