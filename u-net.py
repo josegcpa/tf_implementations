@@ -252,6 +252,19 @@ def main(mode,
     if epochs != None:
         number_of_steps = epochs * int(len(image_path_list)/batch_size)
 
+    if 'tumble' in mode:
+        inputs = tf.concat(
+            [inputs,
+             tf.image.rot90(inputs,1),
+             tf.image.rot90(inputs,2),
+             tf.image.rot90(inputs,3),
+             flipped_inputs,
+             tf.image.rot90(flipped_inputs,1),
+             tf.image.rot90(flipped_inputs,2),
+             tf.image.rot90(flipped_inputs,3)],
+             axis=0
+             )
+
     if mode == 'train':
         inputs,truth,weights = next_element
 
@@ -269,58 +282,12 @@ def main(mode,
         weights = tf.placeholder(tf.float32,
                                  [batch_size,input_height,input_width,1])
 
-    if mode == 'tumble_test':
-        inputs,truth = next_element
-        flipped_inputs = tf.image.flip_left_right(inputs)
-
-        inputs = tf.concat(
-            [inputs,
-             tf.image.rot90(inputs,1),
-             tf.image.rot90(inputs,2),
-             tf.image.rot90(inputs,3),
-             flipped_inputs,
-             tf.image.rot90(flipped_inputs,1),
-             tf.image.rot90(flipped_inputs,2),
-             tf.image.rot90(flipped_inputs,3)],
-            axis=0
-        )
-        truth = truth
-        truth = tf.cast(truth,tf.float32)
-        weights = tf.concat([
-            tf.placeholder(tf.float32,
-                           [batch_size,input_height,
-                           input_width,1]) for _ in range(8)],axis=0)
-
-
     if mode == 'predict':
         inputs,image_names = next_element
         truth = tf.placeholder(tf.float32,
                                [batch_size,input_height,input_width,n_classes])
         weights = tf.placeholder(tf.float32,
                                  [batch_size,input_height,input_width,1])
-
-    if mode == 'tumble_predict':
-        inputs,image_names = next_element
-        flipped_inputs = tf.image.flip_left_right(inputs)
-        inputs = tf.concat(
-            [inputs,
-             tf.image.rot90(inputs,1),
-             tf.image.rot90(inputs,2),
-             tf.image.rot90(inputs,3),
-             flipped_inputs,
-             tf.image.rot90(flipped_inputs,1),
-             tf.image.rot90(flipped_inputs,2),
-             tf.image.rot90(flipped_inputs,3)],
-            axis=0
-        )
-        truth = tf.concat([
-            tf.placeholder(tf.float32,
-                           [batch_size,input_height,
-                            input_width,n_classes]) for _ in range(8)],axis=0)
-        weights = tf.concat([
-            tf.placeholder(tf.float32,
-                           [batch_size,input_height,
-                           input_width,1]) for _ in range(8)],axis=0)
 
     elif mode == 'large_predict':
         inputs,large_image_path,large_image_coords,batch_shape = next_element
