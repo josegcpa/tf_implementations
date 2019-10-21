@@ -236,6 +236,7 @@ def main(mode,
             gen_mode = mode.strip('tumble_')
         else:
             gen_mode = mode
+        print(gen_mode)
         next_element = tf_dataset_from_generator(
             generator=generate_images,
             generator_params={
