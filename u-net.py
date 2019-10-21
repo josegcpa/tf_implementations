@@ -299,8 +299,8 @@ def main(mode,
              tf.image.rot90(flipped_inputs,1),
              tf.image.rot90(flipped_inputs,2),
              tf.image.rot90(flipped_inputs,3)],
-             axis=0
-             )
+            axis=0
+            )
 
     inputs = tf.image.convert_image_dtype(inputs,tf.float32)
 
@@ -383,7 +383,6 @@ def main(mode,
         flipped_prediction = prediction_network[4:,:,:,:]
         prediction_network = prediction_network[:4,:,:,:]
         flipped_prediction = tf.image.flip_left_right(flipped_prediction)
-        print(prediction_network,flipped_prediction)
 
         prediction_network = tf.stack([
             prediction_network[0,:,:,:],
@@ -652,8 +651,9 @@ def main(mode,
 
                     try:
                         a = time.perf_counter()
-                        img,_,(f1,auc_,iou) = sess.run(
+                        img,images,_,(f1,auc_,iou) = sess.run(
                             [network,
+                             inputs,
                              (auc_op,f1score_op,m_iou_op,
                               auc_batch_op,
                               f1score_batch_op,
@@ -661,7 +661,7 @@ def main(mode,
                              (f1score_batch,
                               auc_batch,
                               m_iou_batch)])
-
+                        print(images.shape)
                         n_images = img.shape[0]
 
                         b = time.perf_counter()
