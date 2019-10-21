@@ -381,9 +381,9 @@ def main(mode,
 
     if 'tumble' in mode:
         flipped_prediction = prediction_network[4:,:,:,:]
-        flipped_prediction = tf.image.flip_left_right(
-            flipped_prediction[:4,:,:])
         prediction_network = prediction_network[:4,:,:,:]
+        flipped_prediction = tf.image.flip_left_right(flipped_prediction)
+        print(prediction_network,flipped_prediction)
 
         prediction_network = tf.stack([
             prediction_network[0,:,:,:],
@@ -403,8 +403,6 @@ def main(mode,
                                      tf.zeros_like(prediction_network))
 
         binarized_truth = tf.expand_dims(binarized_truth,axis=-1)
-
-        print(prediction_network,binarized_network,binarized_truth)
 
     auc, auc_op = tf.metrics.auc(
         binarized_truth,
