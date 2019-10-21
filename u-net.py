@@ -416,6 +416,7 @@ def main(mode,
     prediction_network = tf.nn.softmax(network,axis=3)[:,:,:,1]
 
     if 'tumble' in mode:
+        print(prediction_network)
         flipped_prediction = prediction_network[4:,:,:,:]
         prediction_network = prediction_network[:4,:,:]
         prediction_network = tf.stack([
