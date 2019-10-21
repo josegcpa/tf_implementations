@@ -228,10 +228,14 @@ def main(mode,
         iterator = dataset.make_one_shot_iterator()
 
         next_element = iterator.get_next()
-        if mode == 'test':
+        if 'test' in mode:
             next_element = [next_element[0],next_element[1]]
 
     else:
+        if 'tumble' in mode:
+            gen_mode = mode.strip('tumble_')
+        else:
+            gen_mode = mode
         next_element = tf_dataset_from_generator(
             generator=generate_images,
             generator_params={
