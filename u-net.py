@@ -394,7 +394,7 @@ def main(mode,
             tf.image.rot90(flipped_prediction[2,:,:,:],-2),
             tf.image.rot90(flipped_prediction[3,:,:,:],-3)]
 
-        prediction_network = tf.stack(pred_li,axis=0)
+        prediction_network = tf.stack(pred_list,axis=0)
         prediction_network = tf.reduce_mean(prediction_network,
                                             axis=0,
                                             keepdims=True)
