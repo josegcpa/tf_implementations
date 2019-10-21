@@ -380,21 +380,6 @@ def main(mode,
         squeeze_and_excite=squeeze_and_excite
         )
 
-    if 'tumble' in mode:
-        flipped_network = network[4:,:,:,:]
-        network = network[:4,:,:]
-        network = tf.stack([
-            network[0,:,:,:],
-            tf.image.rot90(network[1,:,:,:],-1),
-            tf.image.rot90(network[2,:,:,:],-2),
-            tf.image.rot90(network[3,:,:,:],-3),
-            flipped_network[0,:,:,:],
-            tf.image.rot90(flipped_network[1,:,:,:],-1),
-            tf.image.rot90(flipped_network[2,:,:,:],-2),
-            tf.image.rot90(flipped_network[3,:,:,:],-3),
-        ])
-        network = tf.reduce_mean(network,axis=0,keepdims=True)
-
     log_write_print(log_file,
                     'Total parameters: {0:d} (trainable: {1:d})\n'.format(
                         variables(tf.all_variables()),
@@ -404,21 +389,12 @@ def main(mode,
     saver = tf.train.Saver()
     loading_saver = tf.train.Saver()
 
-    #Loss function
-    if n_classes == 3:
-        class_balancing = tf.stack(
-            [tf.ones_like(truth[:,:,:,0])/tf.reduce_sum(truth[:,:,:,0]),
-             tf.ones_like(truth[:,:,:,1])/tf.reduce_sum(truth[:,:,:,1]),
-             tf.ones_like(truth[:,:,:,2])/tf.reduce_sum(truth[:,:,:,2])],
-            axis=3
-            )
 
-    elif n_classes == 2:
-        class_balancing = tf.stack(
-            [tf.ones_like(truth[:,:,:,0])/tf.reduce_sum(truth[:,:,:,0]),
-             tf.ones_like(truth[:,:,:,1])/tf.reduce_sum(truth[:,:,:,1])],
-            axis=3
-            )
+    class_balancing = tf.stack(
+        [tf.ones_like(truth[:,:,:,0])/tf.reduce_sum(truth[:,:,:,0]),
+         tf.ones_like(truth[:,:,:,1])/tf.reduce_sum(truth[:,:,:,1])],
+        axis=3
+        )
 
     if iglovikov == True:
         loss = iglovikov_loss(truth,network)
@@ -434,39 +410,27 @@ def main(mode,
         reg_losses = slim.losses.get_regularization_losses()
         loss = loss + tf.add_n(reg_losses) / len(reg_losses)
 
-    #Evaluation metrics
-    if n_classes == 3:
-        bg = network[:,:,:,0]
-        fg = network[:,:,:,1]
-        ct = network[:,:,:,2]
-        binarized_network = tf.where(
-            fg > bg,
-            tf.ones_like(fg),
-            tf.zeros_like(bg)
-        )
-        binarized_network = tf.where(
-            fg > ct,
-            binarized_network,
-            tf.zeros_like(ct)
-        )
+    binarized_truth = tf.argmax(truth,axis = 3)
+    binarized_network = tf.argmax(network,axis = 3)
+    prediction_network = tf.nn.softmax(network,axis=3)[:,:,:,1]
 
-        prediction_network = tf.stack([bg,fg],axis=3)
-        prediction_network = tf.nn.softmax(prediction_network,axis=3)[:,:,:,1]
-        prediction_network = tf.where(
-            ct > fg,
-            tf.zeros_like(fg),
-            fg
-        )
-        binarized_truth = tf.where(
-            truth[:,:,:,1] > truth[:,:,:,0],
-            tf.ones_like(truth[:,:,:,1]),
-            tf.zeros_like(truth[:,:,:,0])
-        )
-
-    elif n_classes == 2:
-        binarized_truth = tf.argmax(truth,axis = 3)
-        binarized_network = tf.argmax(network,axis = 3)
-        prediction_network = tf.nn.softmax(network,axis=3)[:,:,:,1]
+    if 'tumble' in mode:
+        flipped_prediction = prediction_network[4:,:,:,:]
+        prediction_network = prediction_network[:4,:,:]
+        prediction_network = tf.stack([
+            prediction_network[0,:,:,:],
+            tf.image.rot90(network[1,:,:,:],-1),
+            tf.image.rot90(network[2,:,:,:],-2),
+            tf.image.rot90(network[3,:,:,:],-3),
+            prediction_network[0,:,:,:],
+            tf.image.rot90(flipped_network[1,:,:,:],-1),
+            tf.image.rot90(flipped_network[2,:,:,:],-2),
+            tf.image.rot90(flipped_network[3,:,:,:],-3),
+        ])
+        prediction_network = tf.reduce_mean(network,axis=0,keepdims=True)
+        binarized_network = tf.where(network > 0.5,
+                                     tf.ones_like(binarized_network),
+                                     tf.zeros_like(binarized_network))
 
     auc, auc_op = tf.metrics.auc(
         binarized_truth,
