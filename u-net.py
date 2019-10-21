@@ -736,7 +736,7 @@ def main(mode,
 
                     try:
                         a = time.perf_counter()
-                        prediction,im_names = sess.run([prob_network,
+                        prediction,im_names = sess.run([prediction_network,
                                                         image_names])
                         n_images = prediction.shape[0]
                         b = time.perf_counter()
