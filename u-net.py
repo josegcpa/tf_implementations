@@ -665,8 +665,8 @@ def main(mode,
                         try: os.makedirs('tmp')
                         except: pass
                         for i,(out,inp) in enumerate(zip(img,images)):
-                            tiff.imsave('{}.tif'.format(i),inp)
-                            tiff.imsave('{}_out.tif'.format(i),out)
+                            tiff.imsave('tmp/{}.tif'.format(i),inp)
+                            tiff.imsave('tmp/{}_out.tif'.format(i),out)
                         n_images = img.shape[0]
 
                         b = time.perf_counter()
