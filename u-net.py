@@ -417,7 +417,6 @@ def main(mode,
         tf.nn.softmax(network,axis=3)[:,:,:,1],-1)
 
     if 'tumble' in mode:
-        print(prediction_network)
         flipped_prediction = prediction_network[4:,:,:,:]
         prediction_network = prediction_network[:4,:,:]
         prediction_network = tf.stack([
@@ -791,60 +790,6 @@ def main(mode,
                 avg_time = np.mean(time_list)
                 output = FINAL_LOG.format(avg_time)
                 log_write_print(log_file,output)
-
-            """
-            elif mode == 'tumble_predict' and ckpt_exists:
-                print('Predicting...')
-
-                LOG = 'Time/{0:d} images: {1:f}s (time/1 image: {2:f}s).'
-                FINAL_LOG = 'Average time/image: {0:f}'
-
-                prob_network = tf.nn.softmax(network)[:,:,:,1]
-
-                with tf.Session() as sess:
-                    try:
-                        os.makedirs(prediction_output)
-                    except:
-                        pass
-
-                    sess.run(init)
-                    trained_network = saver.restore(sess,checkpoint_path)
-
-                    time_list = []
-
-                    keep_going = True
-
-                    while keep_going == True:
-
-                        try:
-
-                            a = time.perf_counter()
-                            prediction,im_names = sess.run([prob_network,
-                                                            image_names])
-                            n_images = prediction.shape[0]
-                            b = time.perf_counter()
-                            t_image = (b - a)/n_images
-                            time_list.append(t_image)
-
-                            output = LOG.format(n_images,b - a,t_image)
-                            log_write_print(log_file,output)
-
-                            for i in range(prediction.shape[0]):
-                                image = prediction[i,:,:]
-                                image_name = im_names[i].decode().split(os.sep)[-1]
-                                image_name = image_name.split('.')[0]
-                                image_name = image_name + '.tif'
-                                image_output = os.path.join(prediction_output,
-                                                            image_name)
-                                tiff.imsave(image_output,image)
-
-                        except:
-                            keep_going = False
-
-                    avg_time = np.mean(time_list)
-                    output = FINAL_LOG.format(avg_time)
-                    log_write_print(log_file,output)
-            """
 
         elif mode == 'large_predict' and ckpt_exists:
             print('Predicting large image...')
