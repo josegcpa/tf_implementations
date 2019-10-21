@@ -295,7 +295,7 @@ def main(mode,
              tf.image.rot90(flipped_truth,3)],
             axis=0
         )
-        truth = tf.cast(tf.float32,truth)
+        truth = tf.cast(truth,tf.float32)
         weights = tf.concat([
             tf.placeholder(tf.float32,
                            [batch_size,input_height,
