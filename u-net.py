@@ -748,6 +748,7 @@ def main(mode,
                         for i in range(prediction.shape[0]):
                             image = prediction[i,:,:]
                             image_name = im_names[i].decode().split(os.sep)[-1]
+                            print(image_name)
                             image_name = image_name.split('.')[0]
                             image_name = image_name + '.tif'
                             image_output = os.path.join(prediction_output,
