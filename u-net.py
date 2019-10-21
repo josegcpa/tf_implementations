@@ -413,7 +413,8 @@ def main(mode,
 
     binarized_truth = tf.argmax(truth,axis = 3)
     binarized_network = tf.argmax(network,axis = 3)
-    prediction_network = tf.nn.softmax(network,axis=3)[:,:,:,1]
+    prediction_network = tf.expand_dims(
+        tf.nn.softmax(network,axis=3)[:,:,:,1],-1)
 
     if 'tumble' in mode:
         print(prediction_network)
