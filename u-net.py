@@ -263,13 +263,13 @@ def main(mode,
             (tf.float32,tf.float32,tf.float32)
             )
 
-    if mode == 'test':
+    if 'test' in mode:
         inputs,truth = next_element
         truth = tf.cast(truth,tf.float32)
         weights = tf.placeholder(tf.float32,
                                  [batch_size,input_height,input_width,1])
 
-    if mode == 'predict':
+    if 'predict' in mode:
         inputs,image_names = next_element
         truth = tf.placeholder(tf.float32,
                                [batch_size,input_height,input_width,n_classes])
