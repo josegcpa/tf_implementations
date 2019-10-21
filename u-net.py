@@ -642,10 +642,18 @@ def main(mode,
                 keep_going = True
 
                 while keep_going == True:
+
+                    img,_,(f1,auc_,iou) = sess.run(
+                        [network,
+                         (auc_op,f1score_op,m_iou_op,
+                          auc_batch_op,
+                          f1score_batch_op,
+                          m_iou_batch_op),
+                         (f1score_batch,
+                          auc_batch,
+                          m_iou_batch)])
                     try:
-
                         a = time.perf_counter()
-
                         img,_,(f1,auc_,iou) = sess.run(
                             [network,
                              (auc_op,f1score_op,m_iou_op,
