@@ -272,7 +272,7 @@ def main(mode,
     if mode == 'tumble_test':
         inputs,truth = next_element
         flipped_inputs = tf.image.flip_left_right(inputs)
-        flipped_truth = tf.image.flip_left_right(truth)
+
         inputs = tf.concat(
             [inputs,
              tf.image.rot90(inputs,1),
@@ -284,17 +284,7 @@ def main(mode,
              tf.image.rot90(flipped_inputs,3)],
             axis=0
         )
-        truth = tf.concat(
-            [tf.cast(truth,tf.float64),
-             tf.image.rot90(truth,1),
-             tf.image.rot90(truth,2),
-             tf.image.rot90(truth,3),
-             tf.cast(flipped_truth,tf.float64),
-             tf.image.rot90(flipped_truth,1),
-             tf.image.rot90(flipped_truth,2),
-             tf.image.rot90(flipped_truth,3)],
-            axis=0
-        )
+        truth = truth
         truth = tf.cast(truth,tf.float32)
         weights = tf.concat([
             tf.placeholder(tf.float32,
