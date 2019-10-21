@@ -284,7 +284,7 @@ def main(mode,
                                  [batch_size,input_height,input_width,1])
 
     if 'tumble' in mode:
-        flipped_inputs = tf.image.flip_left_right(flipped_inputs)
+        flipped_inputs = tf.image.flip_left_right(inputs)
         inputs = tf.concat(
             [inputs,
              tf.image.rot90(inputs,1),
