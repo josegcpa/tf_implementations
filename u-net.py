@@ -752,6 +752,7 @@ def main(mode,
                             image_name = image_name + '.tif'
                             image_output = os.path.join(prediction_output,
                                                         image_name)
+                            print(image_name)
                             tiff.imsave(image_output,image)
 
                     except:
