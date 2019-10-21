@@ -397,6 +397,8 @@ def main(mode,
             tf.squeeze(binarized_truth,axis=-1),
             axis=0)
 
+        print(binarized_truth,binarized_network)
+
     auc, auc_op = tf.metrics.auc(
         binarized_truth,
         binarized_network)
