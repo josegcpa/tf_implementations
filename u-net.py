@@ -405,29 +405,30 @@ def main(mode,
 
         binarized_truth = tf.expand_dims(binarized_truth,axis=-1)
 
-    auc, auc_op = tf.metrics.auc(
-        binarized_truth,
-        binarized_network)
-    f1score,f1score_op = tf.contrib.metrics.f1_score(
-        binarized_truth,
-        binarized_network)
-    m_iou,m_iou_op = tf.metrics.mean_iou(
-        labels=binarized_truth,
-        predictions=binarized_network,
-        num_classes=2)
-    auc_batch, auc_batch_op = tf.metrics.auc(
-        binarized_truth,
-        binarized_network,
-        name='auc_batch')
-    f1score_batch,f1score_batch_op = tf.contrib.metrics.f1_score(
-        binarized_truth,
-        binarized_network,
-        name='f1_batch')
-    m_iou_batch,m_iou_batch_op = tf.metrics.mean_iou(
-        labels=binarized_truth,
-        predictions=binarized_network,
-        num_classes=2,
-        name='m_iou_batch')
+    if 'train' in mode or 'test' in mode:
+        auc, auc_op = tf.metrics.auc(
+            binarized_truth,
+            binarized_network)
+        f1score,f1score_op = tf.contrib.metrics.f1_score(
+            binarized_truth,
+            binarized_network)
+        m_iou,m_iou_op = tf.metrics.mean_iou(
+            labels=binarized_truth,
+            predictions=binarized_network,
+            num_classes=2)
+        auc_batch, auc_batch_op = tf.metrics.auc(
+            binarized_truth,
+            binarized_network,
+            name='auc_batch')
+        f1score_batch,f1score_batch_op = tf.contrib.metrics.f1_score(
+            binarized_truth,
+            binarized_network,
+            name='f1_batch')
+        m_iou_batch,m_iou_batch_op = tf.metrics.mean_iou(
+            labels=binarized_truth,
+            predictions=binarized_network,
+            num_classes=2,
+            name='m_iou_batch')
 
     batch_vars = [v for v in tf.local_variables()]
     batch_vars = [v for v in batch_vars if 'batch' in v.name]
