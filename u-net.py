@@ -245,7 +245,7 @@ def main(mode,
                 'input_width':input_width,
                 'n_classes':n_classes,
                 'truth_only':truth_only,
-                'mode':mode
+                'mode':gen_mode
                 },
             output_types=output_types,
             output_shapes=output_shapes,
