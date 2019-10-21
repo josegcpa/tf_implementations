@@ -435,6 +435,7 @@ def main(mode,
         binarized_network = tf.where(prediction_network > 0.5,
                                      tf.ones_like(prediction_network),
                                      tf.zeros_like(prediction_network))
+        print(prediction_network,binarized_network,binarized_truth)
 
     auc, auc_op = tf.metrics.auc(
         binarized_truth,
