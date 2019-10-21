@@ -285,11 +285,11 @@ def main(mode,
             axis=0
         )
         truth = tf.concat(
-            [inputs,
+            [tf.cast(inputs,tf.float64),
              tf.image.rot90(truth,1),
              tf.image.rot90(truth,2),
              tf.image.rot90(truth,3),
-             flipped_inputs,
+             tf.cast(flipped_inputs,tf.float64),
              tf.image.rot90(flipped_truth,1),
              tf.image.rot90(flipped_truth,2),
              tf.image.rot90(flipped_truth,3)],
