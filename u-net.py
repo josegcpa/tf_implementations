@@ -746,8 +746,6 @@ def main(mode,
                         output = LOG.format(n_images,b - a,t_image)
                         log_write_print(log_file,output)
 
-                        print(prediction.shape)
-
                         for i in range(prediction.shape[0]):
                             image = prediction[i,:,:]
                             image_name = im_names[i].decode().split(os.sep)[-1]
