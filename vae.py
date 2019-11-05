@@ -441,8 +441,8 @@ class VAE:
                             z = sigma * z + (1 - sigma) * m
                             self.kl_div -= tf.reduce_sum(tf.log(sigma + 1e-16))
                         self.latent = z
-                    self.kl_div_decay = 5. - tf.train.linear_cosine_decay(
-                        learning_rate=5.0,
+                    self.kl_div_decay = 1. - tf.train.linear_cosine_decay(
+                        learning_rate=2.0,
                         global_step=self.global_step,
                         decay_steps=10000
                     )
@@ -569,7 +569,7 @@ class VAE:
                         kl_divs.append(kl_div)
                     self.sparsity = tf.add_n(kl_divs) / len(kl_divs)
             else:
-                sparsity = 0.
+                self.sparsity = 0.
 
             if self.beta_l2_regularization != None:
                 self.reg_loss = self.beta_l2_regularization * tf.add_n(
@@ -823,6 +823,7 @@ class VAE:
                      self.loss,
                      self.global_step]
                     )
+                print(self.sess.run(self.kl_div_decay))
                 b = time.time()
                 self.time_list.append(b - a)
 
