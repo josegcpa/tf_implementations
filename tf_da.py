@@ -58,11 +58,12 @@ class ImageAugmenter:
     def augment(self,image,*masks):
         image = tf.image.convert_image_dtype(image,tf.float32)
         masks = [tf.image.convert_image_dtype(m,tf.float32) for m in masks]
-        image,masks = elastic_transform(
-            image,*masks,
-            sigma=self.elastic_transform_sigma,
-            alpha_affine=self.elastic_transform_alpha,
-            p=self.elastic_transform_p)
+        if self.elastic_transform_p > 0:
+            image,masks = elastic_transform(
+                image,*masks,
+                sigma=self.elastic_transform_sigma,
+                alpha_affine=self.elastic_transform_alpha,
+                p=self.elastic_transform_p)
 
         image_shape = image.get_shape().as_list()
         image = random_color_transformations(image,
@@ -92,7 +93,11 @@ class ImageAugmenter:
                                         self.max_jpeg_quality
                                         )
         image = tf.reshape(image,image_shape)
-        return image,(*masks)
+
+        if len(masks) == 0:
+            return image
+        else:
+            return image,(*masks)
 
 def random_color_transformations(
     image,

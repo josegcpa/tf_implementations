@@ -606,10 +606,11 @@ class VAE:
         if self.data_augmentation == True:
             image_augmenter = tf_da.ImageAugmenter(
                 **self.data_augmentation_params)
+            self.inputs = tf.image.convert_image_dtype(self.inputs,dtype=tf.float32)
             self.inputs = tf.map_fn(
                 lambda x: image_augmenter.augment(x),
                 self.inputs,
-                dtype = tf.float32
+                dtype=tf.float32
             )
 
         else:
@@ -823,7 +824,6 @@ class VAE:
                      self.loss,
                      self.global_step]
                     )
-                print(self.sess.run(self.kl_div_decay))
                 b = time.time()
                 self.time_list.append(b - a)
 
@@ -1072,7 +1072,8 @@ if __name__ == '__main__':
         ['discrete_rotation',True,'store_true'],
         ['continuous_rotation',True,'store_true'],
         ['min_jpeg_quality',30,int],
-        ['max_jpeg_quality',70,int]
+        ['max_jpeg_quality',70,int],
+        ['elastic_transform_p',0.0,float]
     ]:
         print(arg[0])
         if arg[2] != 'store_true':
@@ -1153,7 +1154,8 @@ if __name__ == '__main__':
         'discrete_rotation':args.discrete_rotation,
         'continuous_rotation':args.continuous_rotation,
         'min_jpeg_quality':args.min_jpeg_quality,
-        'max_jpeg_quality':args.max_jpeg_quality
+        'max_jpeg_quality':args.max_jpeg_quality,
+        'elastic_transform_p':args.elastic_transform_p
     }
 
     vae = VAE(mode=args.mode,
