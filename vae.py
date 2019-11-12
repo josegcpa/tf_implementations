@@ -151,6 +151,7 @@ class VAE:
         self.batch_size = batch_size
         self.n_latent_layers = n_latent_layers
         self.sparsity_amount = sparsity_amount
+        self.discrete_pixel = False
 
         #Path-related operations
         if self.extension in self.image_path:
@@ -509,38 +510,67 @@ class VAE:
                         self.convolutions.append(network)
                         network = tf.nn.relu(network)
 
-                    with tf.variable_scope('Block4'):
-                        network = slim.conv2d_transpose(
-                            network,
-                            int(64 * self.depth_mult),
-                            [5,5],
-                            activation_fn=tf.nn.relu,
-                            stride=2,
-                            scope = 'conv2d_5x5_1')
-                        network = slim.conv2d(
-                            network,
-                            int(32 * self.depth_mult),
-                            [3,3],
-                            scope = 'conv2d_3x3_1')
-                        self.convolutions.append(network)
-                        network = tf.nn.relu(network)
-                        network = slim.conv2d(network,
-                                              int(16),
-                                              [3,3],
-                                              scope = 'conv2d_3x3_2')
-                        self.convolutions.append(network)
-                        network = tf.nn.relu(network)
-                        self.network = slim.conv2d(
-                            network,3,[1,1],
-                            scope = 'conv2d_1x1_4',
-                            activation_fn = tf.nn.sigmoid)
+                    if self.discrete_pixel == True:
+                        with tf.variable_scope('Block4'):
+                            self.network = slim.conv2d_transpose(
+                                network,
+                                256,
+                                [5,5],
+                                activation_fn=None,
+                                stride=2,
+                                scope = 'conv2d_5x5_1')
+                            self.network = slim.conv2d(
+                                network,
+                                256,
+                                [1,1],
+                                activation_fn=None,
+                                scope = 'conv2d_3x3_discrete_pixel')
+                    else:
+                        with tf.variable_scope('Block4'):
+                            network = slim.conv2d_transpose(
+                                network,
+                                int(64 * self.depth_mult),
+                                [5,5],
+                                activation_fn=tf.nn.relu,
+                                stride=2,
+                                scope = 'conv2d_5x5_1')
+                            network = slim.conv2d(
+                                network,
+                                int(32 * self.depth_mult),
+                                [3,3],
+                                scope = 'conv2d_3x3_1')
+                            self.convolutions.append(network)
+                            network = tf.nn.relu(network)
+                            network = slim.conv2d(network,
+                                                  int(16),
+                                                  [3,3],
+                                                  scope = 'conv2d_3x3_2')
+                            self.convolutions.append(network)
+                            network = tf.nn.relu(network)
+                            self.network = slim.conv2d(
+                                network,3,[1,1],
+                                scope = 'conv2d_1x1_4',
+                                activation_fn = tf.nn.sigmoid)
 
         # Reconstruction loss for VAE
         with tf.name_scope('Binary_CE'):
-            ce = self.inputs * tf.log(self.network + 1e-16)
-            ce += (1 - self.inputs) * tf.log(1 - self.network + 1e-16)
-            self.ce = - tf.reduce_mean(ce,[1,2,3])
-            self.ce_batch_mean = tf.reduce_mean(self.ce)
+            if self.discrete_pixel == True:
+                self.inputs_discrete_pixel = tf.floor(self.inputs * 256)
+                self.inputs_discrete_pixel = tf.one_hot(
+                    indices=tf.cast(self.inputs_discrete_pixel,tf.uint8),
+                    depth=255
+                )
+                ce = self.inputs_discrete_pixel * tf.log(self.network + 1e-16)
+                ce += tf.multiply(
+                    1 - self.inputs_discrete_pixel,
+                    tf.log(self.network + 1e-16))
+                self.ce = -tf.reduce_mean(ce,[1,2,3])
+                self.ce_batch_mean = tf.reduce_mean(self.ce)
+            else:
+                ce = self.inputs * tf.log(self.network + 1e-16)
+                ce += (1 - self.inputs) * tf.log(1 - self.network + 1e-16)
+                self.ce = - tf.reduce_mean(ce,[1,2,3])
+                self.ce_batch_mean = tf.reduce_mean(self.ce)
 
     def vae_loss(self):
         """
@@ -769,9 +799,15 @@ class VAE:
             self.summaries.add(tf.summary.image('inputs',
                                                 self.inputs,
                                                 max_outputs=4))
-            self.summaries.add(tf.summary.image('outputs',
-                                                self.network,
-                                                max_outputs=4))
+            if self.discrete_pixel == True:
+                self.summaries.add(tf.summary.image(
+                'outputs',
+                tf.argmax(self.network,axis=-1) / 255,
+                max_outputs=4))
+            else:
+                self.summaries.add(tf.summary.image('outputs',
+                                                    self.network,
+                                                    max_outputs=4))
             self.summary_op = tf.summary.merge(list(self.summaries),
                                                name='summary_op')
 
