@@ -102,6 +102,7 @@ class VAE:
                  save_checkpoint_steps = 100,
                  save_summary_folder = '/tmp/summary',
                  save_summary_steps = 100,
+                 kl_div_decay_steps = 10000,
                  #Data augmentation
                  data_augmentation_params={},
                  #Testing/Prediction
@@ -138,6 +139,7 @@ class VAE:
         self.save_checkpoint_steps = save_checkpoint_steps
         self.save_summary_folder = save_summary_folder
         self.save_summary_steps = save_summary_steps
+        self.kl_div_decay_steps = kl_div_decay_steps
         #Data augmentation
         self.data_augmentation_params = data_augmentation_params
         #Testing/Prediction
@@ -445,7 +447,7 @@ class VAE:
                     self.kl_div_decay = 1. - tf.train.linear_cosine_decay(
                         learning_rate=2.0,
                         global_step=self.global_step,
-                        decay_steps=10000
+                        decay_steps=self.kl_div_decay_steps
                     )
                     self.kl_div_decay = tf.maximum(0.,self.kl_div_decay)
                     self.kl_div = self.kl_div * self.kl_div_decay
@@ -993,7 +995,6 @@ if __name__ == '__main__':
     parser.add_argument('--mode',
                         dest = 'mode',
                         action = 'store',type = str,
-                        choices=['train','test','predict','predict_with_rotation'],
                         default = 'train',
                         help = 'Defines the mode.')
     parser.add_argument('--random_seed',
@@ -1006,7 +1007,7 @@ if __name__ == '__main__':
                         dest='tfrecords',
                         action='store_true',
                         default = False,
-                        help = 'Flag to signal that input is tfrecords.')
+                        help = 'Flag to signal that input is in tfrecords.')
     parser.add_argument('--image_path',
                         dest = 'image_path',
                         action = ToDirectory,type = str,
@@ -1089,6 +1090,12 @@ if __name__ == '__main__':
                         action = 'store',type = int,
                         default = 100,
                         help = 'Save summary every n steps.')
+    parser.add_argument('--kl_div_decay_steps',
+                        dest = 'save_summary_steps',
+                        action = 'store',type = int,
+                        default = 10000,
+                        help = 'Number of steps with latent dimension inverse\
+                        decay (i.e. progressive increase).')
 
     #Data augmentation
     for arg in [
@@ -1137,7 +1144,7 @@ if __name__ == '__main__':
                         dest = 'depth_mult',
                         action = 'store',type = float,
                         default = 1,
-                        help = 'Multiplier for convolution depth.')
+                        help = 'Multiplier for all convolution depths.')
     parser.add_argument('--latent_mult',
                         dest = 'latent_mult',
                         action = 'store',type = float,
@@ -1156,10 +1163,11 @@ if __name__ == '__main__':
     parser.add_argument('--n_latent_layers',
                         dest = 'n_latent_layers',
                         action = 'store',type = int,
-                        default = 32,
+                        default = 1,
                         help = """
                         Number of latent layers. For n > 1, these are
-                        implemented using inverted augmented flows.
+                        implemented using inverted augmented flows (ATTENTION:\
+                        experimental).
                         """)
     parser.add_argument('--sparsity_amount',
                         dest = 'sparsity_amount',
@@ -1217,6 +1225,7 @@ if __name__ == '__main__':
               save_checkpoint_steps=args.save_checkpoint_steps,
               save_summary_folder=args.save_summary_folder,
               save_summary_steps=args.save_summary_steps,
+              kl_div_decay_steps=args.kl_div_decay_steps,
               #Data augmentation
               data_augmentation_params=data_augmentation_params,
               #Testing/prediction
