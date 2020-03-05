@@ -519,15 +519,15 @@ def main(mode,
                              tf.cast(
                                  binarized_network,tf.float32),
                              max_outputs = 4))
-        summaries.add(
-            tf.summary.image(
-                'compare_binary',
-                tf.stack(
-                    [tf.cast(binarized_network,tf.float32),
-                     tf.cast(binarized_truth,tf.float32),
-                     tf.cast(tf.zeros_like(binarized_truth),tf.float32)],axis=-1),
-                max_outputs = 4)
-            )
+        #summaries.add(
+        #    tf.summary.image(
+        #        'compare_binary',
+        #        tf.stack(
+        #            [tf.cast(binarized_network,tf.float32),
+        #             tf.cast(binarized_truth,tf.float32),
+        #             tf.cast(tf.zeros_like(binarized_truth),tf.float32)],axis=-1),
+        #        max_outputs = 4)
+        #    )
 
         summary_op = tf.summary.merge(list(summaries), name='summary_op')
 
