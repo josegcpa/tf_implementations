@@ -479,6 +479,11 @@ def main(mode,
         loss = [loss,class_loss]
 
     if mode == 'train':
+        if n_classes == 2:
+            prediction_summary = tf.expand_dims(tf.nn.softmax(network,axis = 3)[:,:,:,1],-1)
+        else:
+            prediction_summary = tf.nn.softmax(network,axis=3)
+        
         summaries = set(tf.get_collection(tf.GraphKeys.SUMMARIES))
 
         for endpoint in endpoints:
@@ -512,7 +517,7 @@ def main(mode,
         summaries.add(
             tf.summary.image(
                 'prediction',
-                tf.nn.softmax(network,axis=3),
+                prediction_summary,
                 max_outputs = 4))
         summaries.add(
             tf.summary.image('prediction_binary',
