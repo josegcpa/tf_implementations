@@ -378,8 +378,7 @@ def main(mode,
                                  tf.ones_like(network),
                                  tf.zeros_like(network))
    
-    prediction_network = tf.expand_dims(
-        tf.nn.softmax(network,axis=3)[:,:,:,1],-1)
+    prediction_network = network 
 
     if 'tumble' in mode:
         flipped_prediction = tf.image.flip_left_right(
@@ -407,7 +406,7 @@ def main(mode,
                                      tf.ones_like(prediction_network),
                                      tf.zeros_like(prediction_network))
 
-        binarized_truth = tf.expand_dims(binarized_truth,axis=-1)
+        #binarized_truth = tf.expand_dims(binarized_truth,axis=-1)
 
     if 'train' in mode or 'test' in mode:
         auc, auc_op = tf.metrics.auc(
