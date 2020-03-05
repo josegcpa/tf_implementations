@@ -482,10 +482,12 @@ def main(mode,
         if n_classes == 2:
             prediction_summary = tf.expand_dims(tf.nn.softmax(network,axis = 3)[:,:,:,1],-1)
             prediction_binary_summary = tf.expand_dims(tf.argmax(binarized_network,axis=-1),-1)
+            binarized_truth_summary = tf.expand_dims(tf.argmax(binarized_truth,axis=-1),-1)
         else:
             prediction_summary = tf.nn.softmax(network,axis=3)
             prediction_binary_summary = tf.expand_dims(tf.argmax(binarized_network,axis=-1),-1)
-        
+            binarized_truth_summary = binarized_truth
+
         summaries = set(tf.get_collection(tf.GraphKeys.SUMMARIES))
 
         for endpoint in endpoints:
@@ -510,7 +512,7 @@ def main(mode,
         summaries.add(
             tf.summary.image('truth_image',
                              tf.cast(
-                                 binarized_truth,tf.float32),
+                                 binarized_truth_summary,tf.float32),
                              max_outputs = 4))
         summaries.add(
             tf.summary.image('weight_map',
