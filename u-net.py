@@ -353,7 +353,6 @@ def main(mode,
     saver = tf.train.Saver()
     loading_saver = tf.train.Saver()
 
-
     class_balancing = tf.stack(
         [tf.ones_like(truth[:,:,:,0])/tf.reduce_sum(truth[:,:,:,0]),
          tf.ones_like(truth[:,:,:,1])/tf.reduce_sum(truth[:,:,:,1])],
@@ -375,9 +374,9 @@ def main(mode,
         loss = loss + tf.add_n(reg_losses) / len(reg_losses)
 
     binarized_truth = truth
-    binarized_network = tf.where(prediction_network > 0.5,
-                                 tf.ones_like(prediction_network),
-                                 tf.zeros_like(prediction_network))
+    binarized_network = tf.where(network > 0.5,
+                                 tf.ones_like(network),
+                                 tf.zeros_like(network))
    
     prediction_network = tf.expand_dims(
         tf.nn.softmax(network,axis=3)[:,:,:,1],-1)
