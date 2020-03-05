@@ -503,7 +503,7 @@ def main(mode,
         summaries.add(
             tf.summary.image('truth_image',
                              tf.cast(
-                                 tf.expand_dims(binarized_truth,-1),tf.float32),
+                                 binarized_truth,tf.float32),
                              max_outputs = 4))
         summaries.add(
             tf.summary.image('weight_map',
@@ -512,12 +512,12 @@ def main(mode,
         summaries.add(
             tf.summary.image(
                 'prediction',
-                tf.expand_dims(tf.nn.softmax(network,axis=3)[:,:,:,1],-1),
+                tf.nn.softmax(network,axis=3),
                 max_outputs = 4))
         summaries.add(
             tf.summary.image('prediction_binary',
                              tf.cast(
-                                 tf.expand_dims(binarized_network,-1),tf.float32),
+                                 binarized_network,tf.float32),
                              max_outputs = 4))
         summaries.add(
             tf.summary.image(
