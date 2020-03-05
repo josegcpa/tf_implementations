@@ -481,8 +481,10 @@ def main(mode,
     if mode == 'train':
         if n_classes == 2:
             prediction_summary = tf.expand_dims(tf.nn.softmax(network,axis = 3)[:,:,:,1],-1)
+            prediction_binary_summary = tf.expand_dims(tf.argmax(binarized_network,axis=-1),-1)
         else:
             prediction_summary = tf.nn.softmax(network,axis=3)
+            prediction_binary_summary = tf.expand_dims(tf.argmax(binarized_network,axis=-1),-1)
         
         summaries = set(tf.get_collection(tf.GraphKeys.SUMMARIES))
 
@@ -522,7 +524,7 @@ def main(mode,
         summaries.add(
             tf.summary.image('prediction_binary',
                              tf.cast(
-                                 binarized_network,tf.float32),
+                                 prediction_binary_summary,tf.float32),
                              max_outputs = 4))
         #summaries.add(
         #    tf.summary.image(
