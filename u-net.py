@@ -404,13 +404,12 @@ def main(mode,
         binarized_network = tf.argmax(prediction_network,axis=-1)
         binarized_truth = tf.argmax(truth,axis=-1)
     elif n_classes == 3:
-        print(prediction_network)
-        print(truth)
         binarized_network = tf.argmax(prediction_network,axis=-1)
         binarized_network = tf.where(binarized_network > 1,
                                      tf.ones_like(binarized_network),
                                      binarized_network)
         binarized_truth = tf.argmax(truth,axis=-1)
+        FFF = tf.unique(binarized_truth)
         binarized_truth = tf.where(binarized_truth > 1,
                                    tf.ones_like(binarized_truth),
                                    binarized_truth)
@@ -609,6 +608,7 @@ def main(mode,
 
                 all_class_losses = []
                 for i in range(number_of_steps):
+                    print(sess.run(FFF))
                     a = time.perf_counter()
                     _,l,_,_ = sess.run(
                         [train_op,loss,f1score_op,auc_op])
