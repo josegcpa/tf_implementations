@@ -404,20 +404,20 @@ def main(mode,
         binarized_network = tf.argmax(prediction_network,axis=-1)
         binarized_truth = tf.argmax(truth,axis=-1)
     elif n_classes == 3:
+        print(binarized_network)
+        print(truth)
         binarized_network = tf.argmax(prediction_network,axis=-1)
-        binarized_network = tf.where(binarized_network == 2,
+        binarized_network = tf.where(binarized_network > 1,
                                      tf.ones_like(binarized_network),
                                      binarized_network)
         binarized_truth = tf.argmax(truth,axis=-1)
-        binarized_truth = tf.where(binarized_truth == 2,
+        binarized_truth = tf.where(binarized_truth > 1,
                                    tf.ones_like(binarized_truth),
                                    binarized_truth)
     
     binarized_network = 1 - binarized_network
     binarized_truth = 1 - binarized_truth
 
-    print(binarized_network.get_shape())
-    print(binarized_truth.get_shape())
     if 'train' in mode or 'test' in mode:
         auc, auc_op = tf.metrics.auc(
             binarized_truth,
