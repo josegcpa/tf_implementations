@@ -406,7 +406,6 @@ def main(mode,
     elif n_classes == 3:
         binarized_network = tf.cast(tf.argmax(prediction_network,axis=-1),
                                     tf.float32)
-        FFF = binarized_network
         binarized_network = tf.where(prediction_network[:,:,:,2] > prediction_network[:,:,:,0],
                                      tf.ones_like(binarized_network),
                                      binarized_network)
@@ -610,7 +609,6 @@ def main(mode,
 
                 all_class_losses = []
                 for i in range(number_of_steps):
-                    print(np.unique(sess.run(FFF)))
                     a = time.perf_counter()
                     _,l,_,_ = sess.run(
                         [train_op,loss,f1score_op,auc_op])
