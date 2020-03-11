@@ -408,7 +408,7 @@ def main(mode,
                                     tf.float32)
         FFF = binarized_network
         binarized_network = tf.where(prediction_network[:,:,:,2] > prediction_network[:,:,:,0],
-                                     tf.ones_like(prediction_network),
+                                     tf.ones_like(binarized_network),
                                      binarized_network)
         binarized_truth = tf.cast(tf.argmax(truth,axis=-1),
                                   tf.float32)
