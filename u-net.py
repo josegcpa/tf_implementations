@@ -268,6 +268,7 @@ def main(mode,
             (tf.float32,tf.float32,tf.float32)
             )
         """
+        inputs_original = inputs
 
     elif 'test' in mode:
         inputs,truth = next_element
