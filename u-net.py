@@ -409,7 +409,7 @@ def main(mode,
                                      tf.ones_like(binarized_network),
                                      binarized_network)
         binarized_truth = tf.argmax(truth,axis=-1)
-        FFF = tf.unique(binarized_truth)
+        FFF = binarized_truth
         binarized_truth = tf.where(binarized_truth > 1,
                                    tf.ones_like(binarized_truth),
                                    binarized_truth)
@@ -608,7 +608,7 @@ def main(mode,
 
                 all_class_losses = []
                 for i in range(number_of_steps):
-                    print(sess.run(FFF))
+                    print(np.unique(sess.run(FFF)))
                     a = time.perf_counter()
                     _,l,_,_ = sess.run(
                         [train_op,loss,f1score_op,auc_op])
