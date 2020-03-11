@@ -408,7 +408,7 @@ def main(mode,
         binarized_network = tf.where(binarized_network == 2,
                                      tf.ones_like(binarized_network),
                                      tf.zeros_like(binarized_network))
-        binarized_truth = tf.where(truth,axis=-1)
+        binarized_truth = tf.argmax(truth,axis=-1)
         binarized_truth = tf.where(binarized_truth == 2,
                                    tf.ones_like(binarized_truth),
                                    tf.zeros_like(binarized_truth))
