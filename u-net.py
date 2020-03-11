@@ -609,7 +609,7 @@ def main(mode,
                 all_class_losses = []
                 for i in range(number_of_steps):
                     a = time.perf_counter()
-                    _,l,_,_ = sess.run(
+                    _,l,_,_,_ = sess.run(
                         [train_op,loss,f1score_op,auc_op,m_iou_op])
 
                     if aux_node:
