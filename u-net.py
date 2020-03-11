@@ -566,7 +566,7 @@ def main(mode,
             print("Training the network...\n")
             LOG = 'Step {0:d}: minibatch loss: {1:f}. '
             LOG += 'Average time/minibatch = {2:f}s. '
-            LOG += 'F1-Score: {3:f}; AUC: {4:f}; '
+            LOG += 'F1-Score: {3:f}; AUC: {4:f}; MeanIOU: {5:f}'
             SUMMARY = 'Step {0:d}: summary stored in {1!s}'
             CHECKPOINT = 'Step {0:d}: checkpoint stored in {1!s}'
             CHECKPOINT_PATH = os.path.join(save_checkpoint_folder,
@@ -610,7 +610,7 @@ def main(mode,
                 for i in range(number_of_steps):
                     a = time.perf_counter()
                     _,l,_,_ = sess.run(
-                        [train_op,loss,f1score_op,auc_op])
+                        [train_op,loss,f1score_op,auc_op,m_iou_op])
 
                     if aux_node:
                         class_l = l[1]
@@ -619,11 +619,11 @@ def main(mode,
                     b = time.perf_counter()
                     time_list.append(b - a)
                     if i % log_every_n_steps == 0 or i == 1:
-                        l,_,_ = sess.run([loss,auc_op,f1score_op])
-                        f1,auc_ = sess.run([f1score,auc])
+                        l,_ = sess.run([loss,(auc_op,f1score_op,m_iou_op)])
+                        f1,auc_,miou = sess.run([f1score,auc,m_iou])
                         log_write_print(log_file,
                                         LOG.format(i,l,np.mean(time_list),
-                                                   f1,auc_))
+                                                   f1,auc_,miou))
                         time_list = []
                         if aux_node:
                             class_l = np.mean(all_class_losses)
