@@ -259,7 +259,7 @@ def main(mode,
 
     if mode == 'train':
         inputs,truth,weights = next_element
-
+        """
         IA = tf_da.ImageAugmenter(**data_augmentation_params)
         inputs_original = inputs
         inputs,truth,weights = tf.map_fn(
@@ -267,6 +267,7 @@ def main(mode,
             [inputs,truth,weights],
             (tf.float32,tf.float32,tf.float32)
             )
+        """
 
     elif 'test' in mode:
         inputs,truth = next_element
