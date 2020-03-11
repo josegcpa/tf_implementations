@@ -609,6 +609,8 @@ def main(mode,
                 all_class_losses = []
                 for i in range(number_of_steps):
                     a = time.perf_counter()
+                    print(np.unique(sess.run(binarized_truth),return_counts=True))
+                    print(np.unique(sess.run(binarized_truth),return_counts=True))
                     _,l,_,_,_ = sess.run(
                         [train_op,loss,f1score_op,auc_op,m_iou_op])
 
