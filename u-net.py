@@ -366,7 +366,7 @@ def main(mode,
         loss = tf.nn.softmax_cross_entropy_with_logits(
             labels=truth,
             logits=network)# * class_balancing
-        loss = tf.reduce_sum(loss,axis=3) * weights
+        loss = loss * weights
         loss = tf.reduce_mean(loss)
 
     if beta_l2_regularization > 0:
