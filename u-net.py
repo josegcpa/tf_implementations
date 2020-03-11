@@ -373,12 +373,7 @@ def main(mode,
         reg_losses = slim.losses.get_regularization_losses()
         loss = loss + tf.add_n(reg_losses) / len(reg_losses)
 
-    binarized_truth = truth
-    binarized_network = tf.where(network > 0.5,
-                                 tf.ones_like(network),
-                                 tf.zeros_like(network))
-   
-    prediction_network = network 
+    prediction_network = network
 
     if 'tumble' in mode:
         flipped_prediction = tf.image.flip_left_right(
@@ -402,11 +397,24 @@ def main(mode,
 
         print(prediction_network)
 
-        binarized_network = tf.where(prediction_network > 0.5,
-                                     tf.ones_like(prediction_network),
-                                     tf.zeros_like(prediction_network))
-
-        #binarized_truth = tf.expand_dims(binarized_truth,axis=-1)
+    else:
+        prediction_network = network
+    
+    if n_classes == 2:
+        binarized_network = tf.argmax(prediction_network,axis=-1)
+        binarized_truth = tf.argmax(truth,axis=-1)
+    elif n_classes == 3:
+        binarized_network = tf.argmax(prediction_network,axis=-1)
+        binarized_network = tf.where(binarized_network == 2,
+                                     tf.ones_like(binarized_network),
+                                     tf.zeros_like(binarized_network))
+        binarized_truth = tf.where(truth,axis=-1)
+        binarized_truth = tf.where(binarized_truth == 2,
+                                   tf.ones_like(binarized_truth),
+                                   tf.zeros_like(binarized_truth))
+    
+    binarized_network = 1 - binarized_network
+    binarized_truth = 1 - binarized_truth
 
     if 'train' in mode or 'test' in mode:
         auc, auc_op = tf.metrics.auc(
@@ -481,12 +489,12 @@ def main(mode,
     if mode == 'train':
         if n_classes == 2:
             prediction_summary = tf.expand_dims(tf.nn.softmax(network,axis = 3)[:,:,:,1],-1)
-            prediction_binary_summary = tf.expand_dims(tf.argmax(binarized_network,axis=-1),-1)
-            binarized_truth_summary = tf.expand_dims(tf.argmax(binarized_truth,axis=-1),-1)
+            prediction_binary_summary = tf.expand_dims(binarized_network,axis=-1)
+            binarized_truth_summary = tf.expand_dims(binarized_truth,axis=-1)
         else:
             prediction_summary = tf.nn.softmax(network,axis=3)
-            prediction_binary_summary = tf.expand_dims(tf.argmax(binarized_network,axis=-1),-1)
-            binarized_truth_summary = binarized_truth
+            prediction_binary_summary = tf.expand_dims(binarized_network,axis=-1)
+            binarized_truth_summary = tf.expand_dims(binarized_truth,axis=-1)
 
         summaries = set(tf.get_collection(tf.GraphKeys.SUMMARIES))
 
