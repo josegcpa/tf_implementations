@@ -404,14 +404,16 @@ def main(mode,
         binarized_network = tf.argmax(prediction_network,axis=-1)
         binarized_truth = tf.argmax(truth,axis=-1)
     elif n_classes == 3:
-        binarized_network = tf.argmax(prediction_network,axis=-1)
+        binarized_network = tf.cast(tf.argmax(prediction_network,axis=-1),
+                                    tf.float32)
         FFF = binarized_network
         binarized_network = tf.where(prediction_network[:,:,:,2] > prediction_network[:,:,:,0],
-                                     tf.ones_like(prediction_network,dtype=tf.float32),
+                                     tf.ones_like(prediction_network),
                                      binarized_network)
-        binarized_truth = tf.argmax(truth,axis=-1)
+        binarized_truth = tf.cast(tf.argmax(truth,axis=-1),
+                                  tf.float32)
         binarized_truth = tf.where(truth[:,:,:,2] == 1,
-                                   tf.ones_like(binarized_truth,dtype=tf.float32),
+                                   tf.ones_like(binarized_truth),
                                    binarized_truth)
     
     binarized_network = 1 - binarized_network
