@@ -404,7 +404,7 @@ def main(mode,
         binarized_network = tf.argmax(prediction_network,axis=-1)
         binarized_truth = tf.argmax(truth,axis=-1)
     elif n_classes == 3:
-        print(binarized_network)
+        print(prediction_network)
         print(truth)
         binarized_network = tf.argmax(prediction_network,axis=-1)
         binarized_network = tf.where(binarized_network > 1,
