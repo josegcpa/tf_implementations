@@ -361,10 +361,9 @@ def main(mode,
         loss = iglovikov_loss(truth,network)
 
     else:
-        loss = tf.nn.sigmoid_cross_entropy_with_logits_v2(
+        loss = tf.nn.softmax_cross_entropy_with_logits_v2(
             labels=truth,
             logits=network) * class_balancing
-        loss = tf.nn.softmax(loss)
         loss = loss * weight0s
         loss = tf.reduce_sum(loss)
 
