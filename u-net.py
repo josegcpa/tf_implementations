@@ -519,9 +519,9 @@ def main(mode,
         summaries.add(tf.summary.scalar('auc', auc))
 
         summaries.add(
-            tf.summary.image('image',inputs_original,max_outputs = 4))
+            tf.summary.image('image_original',inputs_original,max_outputs = 4))
         summaries.add(
-            tf.summary.image('image',inputs,max_outputs = 4))
+            tf.summary.image('image_transformed',inputs,max_outputs = 4))
         summaries.add(
             tf.summary.image('truth_image',
                              tf.cast(
@@ -531,11 +531,18 @@ def main(mode,
             tf.summary.image('weight_map',
                              tf.expand_dims(weights,-1),
                              max_outputs = 4))
-        summaries.add(
-            tf.summary.image(
-                'prediction',
-                prediction_summary,
-                max_outputs = 4))
+
+        for i in range(n_classes):
+            summaries.add(
+                tf.summary.image(
+                    'prediction_channel_{}'.format(i),
+                    prediction_network[:,:,:,0],
+                    max_outputs = 4))
+            summarise.add(
+                tf.summary.image(
+                    'truth_channel_{}'.format(i),
+                    truth[:,:,:,i],
+                    max_outputs = 4))
         summaries.add(
             tf.summary.image('prediction_binary',
                              tf.cast(
