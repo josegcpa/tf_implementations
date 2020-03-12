@@ -538,7 +538,7 @@ def main(mode,
                     'prediction_channel_{}'.format(i),
                     prediction_network[:,:,:,0],
                     max_outputs = 4))
-            summarise.add(
+            summaries.add(
                 tf.summary.image(
                     'truth_channel_{}'.format(i),
                     truth[:,:,:,i],
