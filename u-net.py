@@ -536,12 +536,12 @@ def main(mode,
             summaries.add(
                 tf.summary.image(
                     'prediction_channel_{}'.format(i),
-                    prediction_network[:,:,:,0],
+                    tf.expand_dims(prediction_network[:,:,:,0],axis=-1),
                     max_outputs = 4))
             summaries.add(
                 tf.summary.image(
                     'truth_channel_{}'.format(i),
-                    truth[:,:,:,i],
+                    tf.expand_dims(truth[:,:,:,i],axis=-1),
                     max_outputs = 4))
         summaries.add(
             tf.summary.image('prediction_binary',
