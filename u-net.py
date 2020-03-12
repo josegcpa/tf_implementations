@@ -409,13 +409,13 @@ def main(mode,
     elif n_classes == 3:
         binarized_network = tf.cast(tf.argmax(prediction_network,axis=-1),
                                     tf.float32)
-        binarized_network = tf.where(prediction_network[:,:,:,2] > prediction_network[:,:,:,0],
-                                     tf.ones_like(binarized_network),
+        binarized_network = tf.where(prediction_network[:,:,:,2] > prediction_network[:,:,:,1],
+                                     tf.zeros_like(binarized_network),
                                      binarized_network)
         binarized_truth = tf.cast(tf.argmax(truth,axis=-1),
                                   tf.float32)
         binarized_truth = tf.where(truth[:,:,:,2] == 1,
-                                   tf.ones_like(binarized_truth),
+                                   tf.zeros_like(binarized_truth),
                                    binarized_truth)
     
     binarized_network = binarized_network
