@@ -359,7 +359,7 @@ def main(mode,
 
     class_balancing = tf.where(class_balancing < 0.001,
                                tf.ones_like(class_balancing) * 0.001,
-                               class_balancing)
+                               class_balancing) * 1000
 
     if iglovikov == True:
         loss = iglovikov_loss(truth,network)
