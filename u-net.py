@@ -414,8 +414,8 @@ def main(mode,
                                    tf.ones_like(binarized_truth),
                                    binarized_truth)
     
-    binarized_network = 1 - binarized_network
-    binarized_truth = 1 - binarized_truth
+    binarized_network = binarized_network
+    binarized_truth = binarized_truth
 
     if 'train' in mode or 'test' in mode:
         auc, auc_op = tf.metrics.auc(
@@ -609,7 +609,7 @@ def main(mode,
                 all_class_losses = []
                 for i in range(number_of_steps):
                     a = time.perf_counter()
-                    print(np.unique(sess.run(binarized_truth),return_counts=True))
+                    print(np.unique(sess.run(binarized_network),return_counts=True))
                     print(np.unique(sess.run(binarized_truth),return_counts=True))
                     _,l,_,_,_ = sess.run(
                         [train_op,loss,f1score_op,auc_op,m_iou_op])
