@@ -617,7 +617,7 @@ def main(mode,
                     a = time.perf_counter()
                     _,l,_,_,_ = sess.run(
                         [train_op,loss,f1score_op,auc_op,m_iou_op])
-
+                    print(l)
                     if aux_node:
                         class_l = l[1]
                         l = l[0]
