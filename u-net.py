@@ -360,8 +360,6 @@ def main(mode,
     class_balancing = tf.where(class_balancing < 0.001,
                                tf.ones_like(class_balancing) * 0.001,
                                class_balancing)
-    class_balancing = class_balancing / tf.reduce_sum(class_balancing)
-
     if iglovikov == True:
         loss = iglovikov_loss(truth,network)
 
