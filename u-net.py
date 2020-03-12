@@ -353,8 +353,7 @@ def main(mode,
     loading_saver = tf.train.Saver()
 
     class_balancing = tf.stack(
-        [tf.ones_like(truth[:,:,:,0])/tf.reduce_sum(truth[:,:,:,0]),
-         tf.ones_like(truth[:,:,:,1])/tf.reduce_sum(truth[:,:,:,1])],
+        [tf.ones_like(truth[:,:,:,i])/(tf.reduce_sum(truth[:,:,:,i])+1) for i in range(n_classes)],
         axis=3
         )
 
@@ -364,9 +363,9 @@ def main(mode,
     else:
         loss = tf.nn.softmax_cross_entropy_with_logits(
             labels=truth,
-            logits=network)# * class_balancing
+            logits=network) * class_balancing
         loss = loss * weights
-        loss = tf.reduce_mean(loss)
+        loss = tf.reduce_sum(loss)
 
     if beta_l2_regularization > 0:
         reg_losses = slim.losses.get_regularization_losses()
