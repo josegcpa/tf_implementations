@@ -366,7 +366,7 @@ def main(mode,
 
     else:
         loss = tf.nn.softmax_cross_entropy_with_logits_v2(
-            logits=prediction_network,labels = truth)
+            logits=network,labels=truth,axis=-1)
         loss = loss * weights
         loss = tf.reduce_mean(loss)
 
