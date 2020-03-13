@@ -365,14 +365,10 @@ def main(mode,
         loss = iglovikov_loss(truth,network)
 
     else:
-        tmp = tf.nn.softmax(network,axis=-1)
-        loss = tf.add(
-            tf.log(tmp + 1e-8) * truth,
-            (1 - truth) * tf.log(1 - tmp + 1e-8))
-        loss = - tf.reduce_mean(loss,axis=-1)
+        loss = tf.nn.softmax_cross_entropy_with_logits_v2(
+            logits=prediction_network,labels = truth)
         loss = loss * weights
-        loss = tf.reduce_sum(loss,axis=[1,2])
-        loss = tf.reduce_sum(loss)
+        loss = tf.reduce_mean(loss)
 
     if beta_l2_regularization > 0:
         reg_losses = slim.losses.get_regularization_losses()
