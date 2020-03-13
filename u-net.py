@@ -366,10 +366,12 @@ def main(mode,
 
     else:
         tmp = tf.nn.softmax(network,axis=-1)
-        loss = tf.log(tmp + 1e-8) * truth
+        loss = tf.add(
+            tf.log(tmp + 1e-8) * truth,
+            (1 - truth) * tf.log(1 - tmp + 1e-8))
         loss = - tf.reduce_mean(loss,axis=-1)
         loss = loss * weights
-        loss = tf.reduce_mean(loss,axis=[1,2])
+        loss = tf.reduce_sum(loss,axis=[1,2])
         loss = tf.reduce_sum(loss)
 
     if beta_l2_regularization > 0:
