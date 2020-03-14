@@ -415,7 +415,7 @@ def main(mode,
     if 'train' in mode or 'test' in mode:
         auc, auc_op = tf.metrics.auc(
             truth,
-            tf.nn.softmax(network,axis=-1),
+            tf.nn.softmax(network,axis=-1))
         f1score,f1score_op = tf.contrib.metrics.f1_score(
             binarized_truth,
             binarized_network)
