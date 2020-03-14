@@ -212,11 +212,8 @@ def main(mode,
             weights = tf.cast(weights,tf.float32)
             return image,mask,weights
 
-        def predicate(x,y,z):
-            print(x)
-            print(y)
-            print(z)
-            return tf.greater(tf.reduce_sum(x['mask']),1)
+        def predicate(image,mask,weights):
+            return tf.greater(tf.reduce_sum(mask),1)
 
         files = tf.data.Dataset.list_files(
             '{}/*tfrecord*'.format(dataset_dir))
