@@ -482,8 +482,11 @@ def main(mode,
             summaries.add(tf.summary.scalar('loss', loss))
 
         auc, auc_op = tf.metrics.auc(
-            truth,
-            prediction_summary,
+            binarized_truth,
+            tf.stack(1 - prediction_summary[:,:,:,0],
+                     prediction_summary[:,:,:,1],
+                     1 - prediction_summary[:,:,:,2])[tf.argmax(
+                        prediction_summary,axis=-1)],
             num_thresholds=50)
         f1score,f1score_op = tf.contrib.metrics.f1_score(
             binarized_truth,
@@ -493,8 +496,11 @@ def main(mode,
             predictions=binarized_network,
             num_classes=2)
         auc_batch, auc_batch_op = tf.metrics.auc(
-            truth,
-            prediction_summary,
+            binarized_truth,
+            tf.stack(1 - prediction_summary[:,:,:,0],
+                     prediction_summary[:,:,:,1],
+                     1 - prediction_summary[:,:,:,2])[tf.argmax(
+                        prediction_summary,axis=-1)],
             name='auc_batch',
             num_thresholds=50)
         f1score_batch,f1score_batch_op = tf.contrib.metrics.f1_score(
