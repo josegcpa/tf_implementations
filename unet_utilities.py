@@ -256,8 +256,6 @@ def u_net(inputs,
 
         with tf.variable_scope('U-net', None, [inputs]):
 
-            inputs = slim.batch_norm(inputs,is_training=is_training)
-
             with tf.variable_scope('Red_Operations',None,[inputs]):
                 with tf.variable_scope('Red_Block_1',None):
                     net,endpoints = red_block_wrapper(
@@ -382,8 +380,8 @@ def u_net(inputs,
 
                 with tf.variable_scope('Final',None,[net]):
                     net = slim.conv2d(net, n_classes, [1, 1],
-                                      normalizer_fn = None,
-                                      activation_fn = None,
+                                      normalizer_fn=None,
+                                      activation_fn=None,
                                       scope='conv2d_0_sigmoid')
 
                     endpoints['Final'] = net
