@@ -476,7 +476,8 @@ def main(mode,
                     tf.cast(max_bool,tf.float32),
                     tf.stack([1 - prediction_summary[:,:,:,0],
                               prediction_summary[:,:,:,1],
-                              1 - prediction_summary[:,:,:,2]])
+                              1 - prediction_summary[:,:,:,2]],
+                              axis=-1)
                 )
             )
 
