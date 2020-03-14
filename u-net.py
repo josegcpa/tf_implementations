@@ -214,7 +214,7 @@ def main(mode,
 
         def predicate(x):
             print(x)
-            return tf.greater(tf.reduce_sum(x['mask'],1)
+            return tf.greater(tf.reduce_sum(x['mask']),1)
 
         files = tf.data.Dataset.list_files(
             '{}/*tfrecord*'.format(dataset_dir))
