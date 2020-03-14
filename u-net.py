@@ -478,7 +478,8 @@ def main(mode,
                               prediction_summary[:,:,:,1],
                               1 - prediction_summary[:,:,:,2]],
                               axis=-1)
-                )
+                ),
+                axis=-1
             )
 
 
