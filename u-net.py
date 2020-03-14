@@ -472,7 +472,7 @@ def main(mode,
                 network
             )
             probs_summary = tf.reduce_max(
-                tf.multiple(
+                tf.multiply(
                     max_bool,
                     tf.stack(1 - prediction_summary[:,:,0],
                     prediction_summary[:,:,1],
