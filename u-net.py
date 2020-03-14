@@ -371,7 +371,8 @@ def main(mode,
 
     else:
         loss = tf.nn.sigmoid_cross_entropy_with_logits(
-            logits=network,labels=truth,dim=-1)
+            logits=network,labels=truth)
+        loss = tf.reduce_sum(loss,axis=-1)
         loss = loss * weights
         loss = tf.reduce_mean(loss)
 
