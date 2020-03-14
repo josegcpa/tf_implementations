@@ -483,7 +483,8 @@ def main(mode,
 
         auc, auc_op = tf.metrics.auc(
             truth,
-            prediction_summary)
+            prediction_summary,
+            num_thresholds=50)
         f1score,f1score_op = tf.contrib.metrics.f1_score(
             binarized_truth,
             binarized_network)
@@ -494,7 +495,8 @@ def main(mode,
         auc_batch, auc_batch_op = tf.metrics.auc(
             truth,
             prediction_summary,
-            name='auc_batch')
+            name='auc_batch',
+            num_thresholds=50)
         f1score_batch,f1score_batch_op = tf.contrib.metrics.f1_score(
             binarized_truth,
             binarized_network,
