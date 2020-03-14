@@ -461,10 +461,25 @@ def main(mode,
             prediction_summary = tf.expand_dims(tf.nn.softmax(network,axis = -1)[:,:,:,1],-1)
             prediction_binary_summary = tf.expand_dims(binarized_network,axis=-1)
             binarized_truth_summary = tf.expand_dims(binarized_truth,axis=-1)
+            probs_summary = prediction_summary
+
         else:
             prediction_summary = tf.nn.softmax(network,axis=-1)
             prediction_binary_summary = tf.expand_dims(binarized_network,axis=-1)
             binarized_truth_summary = tf.expand_dims(binarized_truth,axis=-1)
+            max_bool = tf.equal(
+                tf.reduce_max(network,axis=-1,keepdims=True),
+                network
+            )
+            probs_summary = tf.reduce_max(
+                tf.multiple(
+                    max_bool,
+                    tf.stack(1 - prediction_summary[:,:,0],
+                    prediction_summary[:,:,1],
+                    1 - prediction_summary[:,:,2])
+                )
+            )
+
 
         summaries = set(tf.get_collection(tf.GraphKeys.SUMMARIES))
 
@@ -481,12 +496,10 @@ def main(mode,
         else:
             summaries.add(tf.summary.scalar('loss', loss))
 
+
         auc, auc_op = tf.metrics.auc(
             binarized_truth,
-            tf.stack(1 - prediction_summary[:,:,:,0],
-                     prediction_summary[:,:,:,1],
-                     1 - prediction_summary[:,:,:,2])[tf.argmax(
-                        prediction_summary,axis=-1)],
+            probs_summary,
             num_thresholds=50)
         f1score,f1score_op = tf.contrib.metrics.f1_score(
             binarized_truth,
@@ -497,10 +510,7 @@ def main(mode,
             num_classes=2)
         auc_batch, auc_batch_op = tf.metrics.auc(
             binarized_truth,
-            tf.stack(1 - prediction_summary[:,:,:,0],
-                     prediction_summary[:,:,:,1],
-                     1 - prediction_summary[:,:,:,2])[tf.argmax(
-                        prediction_summary,axis=-1)],
+            probs_summary,
             name='auc_batch',
             num_thresholds=50)
         f1score_batch,f1score_batch_op = tf.contrib.metrics.f1_score(
