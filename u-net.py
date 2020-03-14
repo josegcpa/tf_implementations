@@ -378,26 +378,23 @@ def main(mode,
 
     if 'tumble' in mode:
         flipped_prediction = tf.image.flip_left_right(
-            prediction_network[4:,:,:,:])
-        prediction_network = prediction_network[:4,:,:,:]
+            network[4:,:,:,:])
+        network = network[:4,:,:,:]
 
         pred_list = [
-            prediction_network[0,:,:,:],
-            tf.image.rot90(prediction_network[1,:,:,:],-1),
-            tf.image.rot90(prediction_network[2,:,:,:],-2),
-            tf.image.rot90(prediction_network[3,:,:,:],-3),
+            network[0,:,:,:],
+            tf.image.rot90(network[1,:,:,:],-1),
+            tf.image.rot90(network[2,:,:,:],-2),
+            tf.image.rot90(network[3,:,:,:],-3),
             flipped_prediction[0,:,:,:],
             tf.image.rot90(flipped_prediction[1,:,:,:],1),
             tf.image.rot90(flipped_prediction[2,:,:,:],-2),
             tf.image.rot90(flipped_prediction[3,:,:,:],-1)]
 
-        prediction_network = tf.stack(pred_list,axis=0)
-        prediction_network = tf.reduce_mean(prediction_network,
+        network = tf.stack(pred_list,axis=0)
+        prediction_network = tf.reduce_mean(network,
                                             axis=0,
                                             keepdims=True)
-
-    else:
-        prediction_network = network
     
     if n_classes == 2:
         binarized_network = tf.argmax(prediction_network,axis=-1)
@@ -414,13 +411,11 @@ def main(mode,
                                    tf.zeros_like(binarized_truth),
                                    binarized_truth)
     
-    binarized_network = binarized_network
-    binarized_truth = binarized_truth
 
     if 'train' in mode or 'test' in mode:
         auc, auc_op = tf.metrics.auc(
-            binarized_truth,
-            binarized_network)
+            truth,
+            tf.nn.softmax(network,axis=-1),
         f1score,f1score_op = tf.contrib.metrics.f1_score(
             binarized_truth,
             binarized_network)
@@ -429,8 +424,8 @@ def main(mode,
             predictions=binarized_network,
             num_classes=2)
         auc_batch, auc_batch_op = tf.metrics.auc(
-            binarized_truth,
-            binarized_network,
+            truth,
+            tf.nn.softmax(network,axis=-1),
             name='auc_batch')
         f1score_batch,f1score_batch_op = tf.contrib.metrics.f1_score(
             binarized_truth,
@@ -489,11 +484,11 @@ def main(mode,
 
     if mode == 'train':
         if n_classes == 2:
-            prediction_summary = tf.expand_dims(tf.nn.softmax(network,axis = 3)[:,:,:,1],-1)
+            prediction_summary = tf.expand_dims(tf.nn.softmax(network,axis = -1)[:,:,:,1],-1)
             prediction_binary_summary = tf.expand_dims(binarized_network,axis=-1)
             binarized_truth_summary = tf.expand_dims(binarized_truth,axis=-1)
         else:
-            prediction_summary = tf.nn.softmax(network,axis=3)
+            prediction_summary = tf.nn.softmax(network,axis=-1)
             prediction_binary_summary = tf.expand_dims(binarized_network,axis=-1)
             binarized_truth_summary = tf.expand_dims(binarized_truth,axis=-1)
 
@@ -532,7 +527,7 @@ def main(mode,
             summaries.add(
                 tf.summary.image(
                     'prediction_channel_{}'.format(i),
-                    tf.expand_dims(prediction_network[:,:,:,i],axis=-1),
+                    tf.expand_dims(prediction_summary[:,:,:,i],axis=-1),
                     max_outputs = 4))
             summaries.add(
                 tf.summary.image(
