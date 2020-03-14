@@ -480,6 +480,31 @@ def main(mode,
             summaries.add(tf.summary.scalar('class_loss', class_loss))
         else:
             summaries.add(tf.summary.scalar('loss', loss))
+
+        auc, auc_op = tf.metrics.auc(
+            truth,
+            prediction_summary)
+        f1score,f1score_op = tf.contrib.metrics.f1_score(
+            binarized_truth,
+            binarized_network)
+        m_iou,m_iou_op = tf.metrics.mean_iou(
+            labels=binarized_truth,
+            predictions=binarized_network,
+            num_classes=2)
+        auc_batch, auc_batch_op = tf.metrics.auc(
+            truth,
+            tf,
+            name='auc_batch')
+        f1score_batch,f1score_batch_op = tf.contrib.metrics.f1_score(
+            binarized_truth,
+            binarized_networ,
+            name='f1_batch')
+        m_iou_batch,m_iou_batch_op = tf.metrics.mean_iou(
+            labels=binarized_truth,
+            predictions=binarized_network,
+            num_classes=2,
+            name='m_iou_batch')
+
         summaries.add(tf.summary.scalar('f1score', f1score))
         summaries.add(tf.summary.scalar('auc', auc))
 
@@ -524,31 +549,6 @@ def main(mode,
         #    )
 
         summary_op = tf.summary.merge(list(summaries), name='summary_op')
-
-    if 'train' in mode or 'test' in mode:
-        auc, auc_op = tf.metrics.auc(
-            truth,
-            prediction_summary)
-        f1score,f1score_op = tf.contrib.metrics.f1_score(
-            binarized_truth,
-            binarized_network)
-        m_iou,m_iou_op = tf.metrics.mean_iou(
-            labels=binarized_truth,
-            predictions=binarized_network,
-            num_classes=2)
-        auc_batch, auc_batch_op = tf.metrics.auc(
-            truth,
-            tf,
-            name='auc_batch')
-        f1score_batch,f1score_batch_op = tf.contrib.metrics.f1_score(
-            binarized_truth,
-            binarized_networ,
-            name='f1_batch')
-        m_iou_batch,m_iou_batch_op = tf.metrics.mean_iou(
-            labels=binarized_truth,
-            predictions=binarized_network,
-            num_classes=2,
-            name='m_iou_batch')
 
     init = tf.group(
         tf.global_variables_initializer(),
