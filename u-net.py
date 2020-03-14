@@ -212,6 +212,10 @@ def main(mode,
             weights = tf.cast(weights,tf.float32)
             return image,mask,weights
 
+        def predicate(x):
+            print(x)
+            return tf.greater(tf.reduce_sum(x['mask'],1)
+
         files = tf.data.Dataset.list_files(
             '{}/*tfrecord*'.format(dataset_dir))
         dataset = files.interleave(
@@ -223,7 +227,7 @@ def main(mode,
             dataset = dataset.shuffle(len(image_path_list))
         dataset = dataset.map(parse_example)
         if truth_only == True:
-            dataset = dataset.filter(lambda x: tf.greater(tf.reduce_sum(x['mask']),1))
+            dataset = dataset.filter(predicate)
         dataset = dataset.batch(batch_size)
         if mode == 'train':
             dataset = dataset.shuffle(buffer_size=500)
