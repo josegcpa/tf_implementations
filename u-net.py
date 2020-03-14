@@ -493,7 +493,7 @@ def main(mode,
             num_classes=2)
         auc_batch, auc_batch_op = tf.metrics.auc(
             truth,
-            tf,
+            prediction_summary,
             name='auc_batch')
         f1score_batch,f1score_batch_op = tf.contrib.metrics.f1_score(
             binarized_truth,
