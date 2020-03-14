@@ -222,6 +222,8 @@ def main(mode,
             dataset = dataset.repeat()
             dataset = dataset.shuffle(len(image_path_list))
         dataset = dataset.map(parse_example)
+        if truth_only == True:
+            dataset = dataset.filter(lambda x: tf.greater(tf.reduce_sum(x['mask']),1))
         dataset = dataset.batch(batch_size)
         if mode == 'train':
             dataset = dataset.shuffle(buffer_size=500)
