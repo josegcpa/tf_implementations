@@ -413,6 +413,7 @@ def main(mode,
     
 
     if 'train' in mode or 'test' in mode:
+        print(network)
         auc, auc_op = tf.metrics.auc(
             truth,
             tf.nn.softmax(network,axis=-1))
