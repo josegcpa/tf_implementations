@@ -497,7 +497,7 @@ def main(mode,
             name='auc_batch')
         f1score_batch,f1score_batch_op = tf.contrib.metrics.f1_score(
             binarized_truth,
-            binarized_networ,
+            binarized_network,
             name='f1_batch')
         m_iou_batch,m_iou_batch_op = tf.metrics.mean_iou(
             labels=binarized_truth,
