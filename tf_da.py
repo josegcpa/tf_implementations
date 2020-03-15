@@ -371,6 +371,7 @@ def elastic_transform(image,*masks,sigma=30,alpha_affine=30,p=0.7):
 
     et = ElasticTransform(sigma=sigma,
                           alpha_affine=alpha_affine,
+                          border_mode=cv2.BORDER_WRAP,
                           p=p)
 
     shapes = [x.get_shape().as_list() for x in [image,*masks]]
