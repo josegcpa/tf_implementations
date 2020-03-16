@@ -533,6 +533,7 @@ def main(mode,
 
         summaries.add(tf.summary.scalar('f1score', f1score))
         summaries.add(tf.summary.scalar('auc', auc))
+        summaries.add(tf.summary.scalar('mean_iou',mean_iou))
 
         summaries.add(
             tf.summary.image('image_original',inputs_original,max_outputs = 4))
