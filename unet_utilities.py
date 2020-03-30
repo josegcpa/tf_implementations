@@ -372,7 +372,7 @@ def u_net(inputs,
                         net = sc_squeeze_and_excite(net,r=2)
 
                 with tf.variable_scope('Final',None,[net]):
-                    net = slim.conv2d(net, n_classes, [1, 1],
+                    net = slim.conv2d(net, n_classes, [3, 3],
                                       normalizer_fn=None,
                                       activation_fn=None,
                                       scope='conv2d_0_sigmoid')
