@@ -401,7 +401,7 @@ def main(mode,
         prediction_network = tf.reduce_mean(network,
                                             axis=0,
                                             keepdims=True)
-    
+
     if n_classes == 2:
         binarized_network = tf.argmax(prediction_network,axis=-1)
         binarized_truth = tf.argmax(truth,axis=-1)
@@ -415,7 +415,7 @@ def main(mode,
                                   tf.float32)
         binarized_truth = tf.where(truth[:,:,:,2] == 1,
                                    tf.zeros_like(binarized_truth),
-                                   binarized_truth) 
+                                   binarized_truth)
 
     batch_vars = [v for v in tf.local_variables()]
     batch_vars = [v for v in batch_vars if 'batch' in v.name]
@@ -639,7 +639,7 @@ def main(mode,
                     a = time.perf_counter()
                     _,l,_,_,_ = sess.run(
                         [train_op,loss,f1score_op,auc_op,m_iou_op])
-                    
+
                     if aux_node:
                         class_l = l[1]
                         l = l[0]
@@ -1220,9 +1220,6 @@ if __name__ == '__main__':
          prediction_output=prediction_output,
          large_prediction_output=large_prediction_output,
          data_augmentation_params=data_augmentation_params,
-         resize=resize,
-         resize_height=resize_height,
-         resize_width=resize_width,
          dataset_dir=dataset_dir,
          path_csv=path_csv,
          truth_dir=truth_dir,
