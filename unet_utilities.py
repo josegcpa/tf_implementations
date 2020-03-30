@@ -41,14 +41,10 @@ def u_net(inputs,
           beta = 0,
           residuals = False,
           n_classes = 2,
-          resize = False,
-          resize_height = 256,
-          resize_width = 256,
           depth_mult = 1,
           is_training = True,
           aux_node = False,
-          squeeze_and_excite = False,
-          data_augmentation_params={}):
+          squeeze_and_excite = False):
 
     """
     Implementation of a standard U-net with some tweaks, namely:
@@ -69,9 +65,6 @@ def u_net(inputs,
     * beta - L2 regularization factor [0]
     * residuals - whether to use residual linkers in the shortcut links [False]
     * n_classes - number of classes in the output layer (only works with 2) [2]
-    * resize - whether the input should be resized before training [False]
-    * resize_height - height of the resized input [256]
-    * resize_width - width of the resized input [256]
     * depth_mult - factor to increase or decrease the depth in each layer
     """
 
@@ -831,7 +824,7 @@ def generate_images_affinity(
                 [truth_img, 1 - truth_img],
                 axis=-1
             )
-            
+
             image_list.append(image_to_array(image_path))
             truth_list.append(truth_img)
 
