@@ -361,7 +361,7 @@ def u_net(inputs,
                 with tf.variable_scope('Rec_Block_4',None,[net]):
                     net,endpoints = rec_block_wrapper(
                         net,
-                        depth=int(64 * depth_mult),
+                        depth=int(128 * depth_mult),
                         factorization=factorization,
                         residuals=residuals,
                         endpoints=endpoints,
