@@ -543,6 +543,7 @@ def main(mode,
                              tf.expand_dims(weights,-1),
                              max_outputs = 4))
 
+        print(prediction_summary)
         for i in range(n_classes):
             summaries.add(
                 tf.summary.image(
