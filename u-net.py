@@ -564,7 +564,7 @@ def main(mode,
             summaries.add(
                 tf.summary.image(
                     'truth_channel_0',
-                    truth[:,:,:,1],
+                    tf.expand_dims(truth[:,:,:,1],axis=-1),
                     max_outputs = 4))
 
         summaries.add(
