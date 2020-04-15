@@ -543,18 +543,30 @@ def main(mode,
                              tf.expand_dims(weights,-1),
                              max_outputs = 4))
 
-        print(prediction_summary)
-        for i in range(n_classes):
+        if n_classes > 2:
+            for i in range(n_classes):
+                summaries.add(
+                    tf.summary.image(
+                        'prediction_channel_{}'.format(i),
+                        tf.expand_dims(prediction_summary[:,:,:,i],axis=-1),
+                        max_outputs = 4))
+                summaries.add(
+                    tf.summary.image(
+                        'truth_channel_{}'.format(i),
+                        tf.expand_dims(truth[:,:,:,i],axis=-1),
+                        max_outputs = 4))
+        else:
             summaries.add(
                 tf.summary.image(
-                    'prediction_channel_{}'.format(i),
-                    tf.expand_dims(prediction_summary[:,:,:,i],axis=-1),
+                    'prediction_channel_0',
+                    prediction_summary,
                     max_outputs = 4))
             summaries.add(
                 tf.summary.image(
-                    'truth_channel_{}'.format(i),
-                    tf.expand_dims(truth[:,:,:,i],axis=-1),
+                    'truth_channel_0',
+                    truth[:,:,:,1],
                     max_outputs = 4))
+
         summaries.add(
             tf.summary.image('prediction_binary',
                              tf.cast(
