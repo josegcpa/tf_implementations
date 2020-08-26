@@ -250,7 +250,7 @@ def edges_to_polygon(edge_x,edge_y,polygon_side):
 
     return bounding_polygon
 
-class SegmentationDataset(Dataset):
+class SegmentationDataset():
     """Carries segmentation datasets."""
 
     def __init__(self,
@@ -289,6 +289,9 @@ class SegmentationDataset(Dataset):
     def __len__(self):
         return len(self.hf)
 
+    def keys(self):
+        return list(self.hf.keys())
+
     def getitem(self,idx):
         def get_rotation_dimensions(h,w,angle):
             theta = np.radians(angle)
@@ -304,9 +307,13 @@ class SegmentationDataset(Dataset):
 
         p = 1 # offset for two-step rotation
 
-        record = self.hf[self.idx_to_keys[idx]]
+        if isinstance(idx,int):
+            key = self.idx_to_keys[idx]
+        else:
+            key = idx
+        record = self.hf[key]
 
-        in_h,in_w,_ = self.hf[self.hf_keys[idx]]['image'].shape
+        in_h,in_w,_ = record['image'].shape
         out_h,out_w = self.size
 
         if self.rotate_record == True:
@@ -344,7 +351,7 @@ class SegmentationDataset(Dataset):
             record = select_region(record,dimensions)
 
         sample = {x:record[x] for x in self.rel_keys}
-        sample['image_name'] = self.idx_to_keys[idx]
+        sample['image_name'] = key
 
         if self.transform:
             sample = self.transform(sample)
@@ -713,7 +720,11 @@ class SegmentationDataset(Dataset):
         return final_output
 
     def getitem_segmentation(self,record):
-        return record['image'],record['mask'],record['weight_map']
+        return {
+            'image':record['image'],
+            'mask':record['mask'],
+            'weight_map':record['weight_map']
+            }
 
     def __getitem__(self,idx):
         record = self.getitem(idx)
@@ -725,4 +736,9 @@ class SegmentationDataset(Dataset):
             record = self.getitem_object_detection_boxes(record)
         elif self.mode == 'object_detection_polygons':
             record = self.getitem_object_detection_polygons(record)
+        if isinstance(idx,int):
+            key = self.idx_to_keys[idx]
+        else:
+            key = idx
+        record['image_name'] = key
         return record
