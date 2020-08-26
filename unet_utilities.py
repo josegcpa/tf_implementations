@@ -4,10 +4,12 @@ from math import inf
 import cv2
 import tifffile as tiff
 import tensorflow as tf
+import h5py
 from scipy.spatial import distance
 from PIL import Image
 
 import tf_da
+from data_generators import *
 
 tf.logging.set_verbosity(tf.logging.ERROR)
 slim = tf.contrib.slim
@@ -998,6 +1000,11 @@ def generate_images_propagation(
             for element in generator:
                 img,weight_map,_ = element
                 yield img,weight_map
+
+def generate_images_h5py_dataset(h5py_path,batch_size):
+    with h5py.File(h5py_path,'r') as f:
+        pass
+
 
 def classification_generator(image_path_list,classification_list,
                              chances = [0,0,0],

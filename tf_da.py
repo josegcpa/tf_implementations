@@ -25,7 +25,6 @@ class ImageAugmenter:
                  blur_mean=0.,
                  blur_std=0.05,
                  discrete_rotation=True,
-                 continuous_rotation=True,
                  min_jpeg_quality=30,
                  max_jpeg_quality=70,
                  elastic_transform_sigma=30,
@@ -46,7 +45,6 @@ class ImageAugmenter:
         self.blur_mean = blur_mean
         self.blur_std = blur_std
         self.discrete_rotation = discrete_rotation
-        self.continuous_rotation = continuous_rotation
         self.min_jpeg_quality = min_jpeg_quality
         self.max_jpeg_quality = max_jpeg_quality
         self.elastic_transform_sigma = elastic_transform_sigma
@@ -59,7 +57,7 @@ class ImageAugmenter:
     def augment(self,image,*masks):
         image = tf.image.convert_image_dtype(image,tf.float32)
         masks = [tf.image.convert_image_dtype(m,tf.float32) for m in masks]
-        
+
         if self.elastic_transform_p > 0:
             image,masks = elastic_transform(
                 image,*masks,
@@ -86,8 +84,7 @@ class ImageAugmenter:
         image = gaussian_noise(image,self.noise_stddev)
         image,masks = random_rotation(
             image,*masks,
-            discrete_rotation=self.discrete_rotation,
-            continuous_rotation=self.continuous_rotation)
+            discrete_rotation=self.discrete_rotation)
 
         if self.min_jpeg_quality - self.max_jpeg_quality != 0:
             image = random_jpeg_quality(image,
@@ -241,8 +238,7 @@ def gaussian_noise(
 def random_rotation(
     image,
     *masks,
-    discrete_rotation=True,
-    continuous_rotation=True
+    discrete_rotation=True
     ):
 
     with tf.variable_scope('RandomRot') and tf.name_scope('RandomRot'):
@@ -276,20 +272,6 @@ def random_rotation(
                 tf.cond(rot90_prob,
                         lambda: tf.image.rot90(m,rot90_angle),
                         lambda: m) for m in masks
-            ]
-        if continuous_rotation == True:
-            rot_cont_prob = tf.random.uniform([]) > 0.5
-            rot_angle = tf.random.uniform([],minval=0,maxval=pi)
-            image = tf.cond(
-                rot_cont_prob,
-                lambda: tf.contrib.image.rotate(image,rot_angle,'BILINEAR'),
-                lambda: image)
-
-            masks = [
-                tf.cond(
-                    rot_cont_prob,
-                    lambda: tf.contrib.image.rotate(m,rot_angle,'NEAREST'),
-                    lambda: m) for m in masks
             ]
 
         return image, masks
