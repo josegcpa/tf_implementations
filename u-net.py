@@ -1046,7 +1046,8 @@ for arg in [
     ['blur_std',0.05,float],
     ['discrete_rotation',True,'store_true'],
     ['min_jpeg_quality',30,int],
-    ['max_jpeg_quality',70,int]
+    ['max_jpeg_quality',70,int],
+    ['elastic_transform_p',0.3,float]
 ]:
     print(arg[0])
     if arg[2] != 'store_true':
@@ -1179,7 +1180,8 @@ data_augmentation_params = {
     'blur_std':args.blur_std,
     'discrete_rotation':args.discrete_rotation,
     'min_jpeg_quality':args.min_jpeg_quality,
-    'max_jpeg_quality':args.max_jpeg_quality
+    'max_jpeg_quality':args.max_jpeg_quality,
+    'elastic_transform_p':args.elastic_transform_p
 }
 
 #Pre-processing
