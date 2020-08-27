@@ -253,7 +253,7 @@ def main(mode,
             is_training=is_training,
             buffer_size=500,
             batch_size=batch_size)
-
+        image_path_list = key_list
     else:
         if 'tumble' in mode:
             gen_mode = mode.replace('tumble_','')
