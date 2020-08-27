@@ -720,12 +720,9 @@ class SegmentationDataset():
         return final_output
 
     def getitem_segmentation(self,record):
-        print(mask.shape)
-        mask = np.concatenate([record['mask'],record['mask']],-1)
-        print(mask.shape)
         return {
             'image':record['image'],
-            'mask': mask,
+            'mask':record['mask'],
             'weight_map':record['weight_map']
             }
 
