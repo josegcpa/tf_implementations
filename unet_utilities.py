@@ -1010,7 +1010,7 @@ def generate_images_h5py_dataset(h5py_path,
         dimensions=(0,0,input_height,input_width),
         mode='segmentation',
         rel_keys=['image','mask','weight_map'],
-        rotate_records=True,
+        rotate_record=True,
         transform=None
     )
     size = len(segmentation_dataset)
