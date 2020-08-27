@@ -243,7 +243,7 @@ def main(mode,
         next_element = tf_dataset_from_generator(
             generator=generate_images_h5py_dataset,
             generator_params={
-                'h5py_path':hdf5_file,
+                'h5py_path':hdf5_path,
                 'input_height':input_height,
                 'input_width':input_width,
                 'key_list':key_list
