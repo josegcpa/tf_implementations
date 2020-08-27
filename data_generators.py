@@ -132,12 +132,9 @@ def select_region(record,dimensions):
             x:np.array([]) for x in record['bounding_polygons']}
         edges = {}
 
-    mask = record['mask'][x1:x2,y1:y2]
-    print(mask.shape)
-    mask = np.concatenate([mask,mask],-1)
     return {
         'image':record['image'][x1:x2,y1:y2],
-        'mask': mask,
+        'mask': record['mask'][x1:x2,y1:y2],
         'weight_map':record['weight_map'][x1:x2,y1:y2],
         'edges':edges,
         'centers':centers,
@@ -723,9 +720,11 @@ class SegmentationDataset():
         return final_output
 
     def getitem_segmentation(self,record):
+        mask = np.concatenate([record['mask'],record['mask']],-1)
+        print(mask.shape)
         return {
             'image':record['image'],
-            'mask':record['mask'],
+            'mask': mask,
             'weight_map':record['weight_map']
             }
 
