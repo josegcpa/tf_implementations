@@ -1,5 +1,7 @@
 import h5py
 import sys
+from glob import glob
+
 polygon_sides = [8,16,24,32]
 
 images_path = sys.argv[1]
