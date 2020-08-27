@@ -1001,8 +1001,9 @@ def generate_images_propagation(
                 img,weight_map,_ = element
                 yield img,weight_map
 
-def generate_images_h5py_dataset(h5py_path,batch_size,
-                                input_height,input_width,
+def generate_images_h5py_dataset(h5py_path,
+                                input_height=256,
+                                input_width=256,
                                 key_list = None):
     segmentation_dataset = SegmentationDataset(
         hdf5_file=h5py_path,
@@ -1017,11 +1018,11 @@ def generate_images_h5py_dataset(h5py_path,batch_size,
         if key_list is None:
             random_idx = np.random.randint(0,size)
             rr = segmentation_dataset[random_idx]
-            yield rr['image'],rr['mask'],rr['weight_map'],rr['image_name']
+            yield rr['image'],rr['mask'],rr['weight_map']
         else:
             random_key = np.random.choice(key_list)
             rr = segmentation_dataset[random_key]
-            yield rr['image'],rr['mask'],rr['weight_map'],rr['image_name']
+            yield rr['image'],rr['mask'],rr['weight_map']
 
 def classification_generator(image_path_list,classification_list,
                              chances = [0,0,0],

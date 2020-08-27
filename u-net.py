@@ -156,6 +156,9 @@ def main(mode,
                     image_path_list.append(tmp[1])
         image_path_list = list(set(image_path_list))
 
+    if extensions == 'h5':
+        hdf5_path = dataset_dir
+
     if trial:
         image_path_list = image_path_list[:50]
 
@@ -232,6 +235,24 @@ def main(mode,
         next_element = iterator.get_next()
         if 'test' in mode:
             next_element = [next_element[0],next_element[1]]
+
+    elif np.all([extension == 'h5',
+                 dataset_dir != None,
+                 mode in ['train','test']]):
+        key_list = [x.strip() for x in open(args.key_list).readlines()]
+        next_element = tf_dataset_from_generator(
+            generator=generate_images_h5py_dataset,
+            generator_params={
+                'h5py_path':hdf5_file,
+                'input_height':input_height,
+                'input_width':input_width,
+                'key_list':key_list
+                },
+            output_types=output_types,
+            output_shapes=output_shapes,
+            is_training=is_training,
+            buffer_size=500,
+            batch_size=batch_size)
 
     else:
         if 'tumble' in mode:
@@ -1098,6 +1119,11 @@ parser.add_argument('--trial',dest = 'trial',
                     action = 'store_true',
                     default = False,
                     help = 'Subsamples the dataset for a quick run.')
+parser.add_argument('--key_list',dest = 'key_list',
+                    action = 'store',
+                    default = None,
+                    help = 'File with one image file per list (for h5 \
+                    extension).')
 
 args = parser.parse_args()
 
