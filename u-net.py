@@ -1178,7 +1178,6 @@ data_augmentation_params = {
     'blur_mean':args.blur_mean,
     'blur_std':args.blur_std,
     'discrete_rotation':args.discrete_rotation,
-    'continuous_rotation':args.continuous_rotation,
     'min_jpeg_quality':args.min_jpeg_quality,
     'max_jpeg_quality':args.max_jpeg_quality
 }
