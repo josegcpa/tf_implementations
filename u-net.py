@@ -1045,7 +1045,6 @@ for arg in [
     ['blur_mean',0,float],
     ['blur_std',0.05,float],
     ['discrete_rotation',True,'store_true'],
-    ['continuous_rotation',True,'store_true'],
     ['min_jpeg_quality',30,int],
     ['max_jpeg_quality',70,int]
 ]:
