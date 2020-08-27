@@ -133,6 +133,7 @@ def select_region(record,dimensions):
         edges = {}
 
     mask = record['mask'][x1:x2,y1:y2]
+    print(mask.shape)
     mask = np.concatenate([mask,mask],-1)
     return {
         'image':record['image'][x1:x2,y1:y2],
