@@ -156,7 +156,7 @@ def main(mode,
                     image_path_list.append(tmp[1])
         image_path_list = list(set(image_path_list))
 
-    if extensions == 'h5':
+    if extension == 'h5':
         hdf5_path = dataset_dir
 
     if trial:
