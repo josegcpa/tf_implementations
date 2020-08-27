@@ -21,6 +21,7 @@ for image_path in list(image_pairs.keys()):
     print(image_path)
     image = read_image(image_path)
     mask = read_image(image_pairs[image_path])[:,:,0][:,:,np.newaxis]
+    mask = np.where(mask > 0,1,0)
     edge_image = np.uint8(cv2.Laplacian(mask,cv2.CV_64F))
     num_labels, labels_im = cv2.connectedComponents(mask)
     bounding_boxes = []
