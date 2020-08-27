@@ -132,9 +132,11 @@ def select_region(record,dimensions):
             x:np.array([]) for x in record['bounding_polygons']}
         edges = {}
 
+    mask = record['mask'][x1:x2,y1:y2]
+    mask = np.concatenate([mask,mask],-1)
     return {
         'image':record['image'][x1:x2,y1:y2],
-        'mask':record['mask'][x1:x2,y1:y2],
+        'mask': mask,
         'weight_map':record['weight_map'][x1:x2,y1:y2],
         'edges':edges,
         'centers':centers,
