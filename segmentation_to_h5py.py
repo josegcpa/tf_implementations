@@ -1,6 +1,7 @@
 import h5py
 import sys
 from glob import glob
+import os
 
 polygon_sides = [8,16,24,32]
 
