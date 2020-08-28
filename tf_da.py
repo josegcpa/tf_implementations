@@ -27,8 +27,8 @@ class ImageAugmenter:
                  discrete_rotation=True,
                  min_jpeg_quality=30,
                  max_jpeg_quality=70,
-                 elastic_transform_sigma=30,
-                 elastic_transform_alpha=30,
+                 elastic_transform_sigma=10,
+                 elastic_transform_alpha_affine=0,
                  elastic_transform_p=0.7):
 
         self.brightness_max_delta = brightness_max_delta
@@ -48,7 +48,7 @@ class ImageAugmenter:
         self.min_jpeg_quality = min_jpeg_quality
         self.max_jpeg_quality = max_jpeg_quality
         self.elastic_transform_sigma = elastic_transform_sigma
-        self.elastic_transform_alpha = elastic_transform_alpha
+        self.elastic_transform_alpha_affine = elastic_transform_alpha_affine
         self.elastic_transform_p = elastic_transform_p
 
     def __str__(self):
@@ -62,7 +62,7 @@ class ImageAugmenter:
             image,masks = elastic_transform(
                 image,*masks,
                 sigma=self.elastic_transform_sigma,
-                alpha_affine=self.elastic_transform_alpha,
+                alpha_affine=self.elastic_transform_alpha_affine,
                 p=self.elastic_transform_p)
 
         image_shape = image.get_shape().as_list()
@@ -353,6 +353,7 @@ def elastic_transform(image,*masks,sigma=10,alpha_affine=10,p=0.7):
         return out
 
     et = ElasticTransform(sigma=sigma,
+                          alpha=100,
                           alpha_affine=alpha_affine,
                           p=p)
 
