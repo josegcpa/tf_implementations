@@ -1018,12 +1018,12 @@ def generate_images_h5py_dataset(h5py_path,
         if key_list is None:
             random_idx = np.random.randint(0,size)
             rr = segmentation_dataset[random_idx]
-            mask = np.concatenate([rr['mask'],1-rr['mask']],axis=2)
+            mask = np.concatenate([1-rr['mask'],rr['mask']],axis=2)
             yield rr['image'],mask,rr['weight_map']
         else:
             random_key = np.random.choice(key_list)
             rr = segmentation_dataset[random_key]
-            mask = np.concatenate([rr['mask'],1-rr['mask']],axis=2)
+            mask = np.concatenate([1-rr['mask'],rr['mask']],axis=2)
             yield rr['image'],mask,rr['weight_map']
 
 def classification_generator(image_path_list,classification_list,
