@@ -1014,6 +1014,7 @@ def generate_images_h5py_dataset(h5py_path,
         transform=None
     )
     size = len(segmentation_dataset)
+    key_list = [x for x in key_list if x in segmentation_dataset.hf_keys]
     while True:
         if key_list is None:
             random_idx = np.random.randint(0,size)
