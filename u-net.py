@@ -757,8 +757,6 @@ def main(mode,
                         np.std(all_auc),
                         np.std(all_m_iou)]
 
-                print(stds)
-
                 min_ci = [np.percentile(time_list,2.5),
                           np.percentile(all_f1score,2.5),
                           np.percentile(all_auc,2.5),
