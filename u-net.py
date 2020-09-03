@@ -483,8 +483,6 @@ def main(mode,
             prediction_binary_summary = tf.expand_dims(binarized_network,axis=-1)
             binarized_truth_summary = tf.expand_dims(binarized_truth,axis=-1)
             probs_summary = prediction_summary
-            print(probs_summary)
-            print('eeheheheheheihfwoigheioher\n\n\n\n')
 
         else:
             prediction_summary = tf.nn.softmax(network,axis=-1)
@@ -725,7 +723,7 @@ def main(mode,
                         a = time.perf_counter()
                         print(sess.run(inputs).shape)
                         print(sess.run(binarized_truth).shape)
-                        print(sess.run(prediction_network).shape)
+                        print(sess.run(probs_summary).shape)
                         img,_,(f1,auc_,iou) = sess.run(
                             [prediction_network,
                              (auc_op,f1score_op,m_iou_op,
