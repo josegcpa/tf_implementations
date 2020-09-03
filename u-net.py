@@ -398,7 +398,6 @@ def main(mode,
     prediction_network = network
 
     if 'tumble' in mode:
-        print('hehehehehehehehehehehe\n\n\n\n\n')
         flipped_prediction = tf.image.flip_left_right(
             network[4:,:,:,:])
         network = network[:4,:,:,:]
@@ -484,6 +483,8 @@ def main(mode,
             prediction_binary_summary = tf.expand_dims(binarized_network,axis=-1)
             binarized_truth_summary = tf.expand_dims(binarized_truth,axis=-1)
             probs_summary = prediction_summary
+            print(probs_summary)
+            print('eeheheheheheihfwoigheioher\n\n\n\n')
 
         else:
             prediction_summary = tf.nn.softmax(network,axis=-1)
