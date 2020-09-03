@@ -398,6 +398,7 @@ def main(mode,
     prediction_network = network
 
     if 'tumble' in mode:
+        print('hehehehehehehehehehehe\n\n\n\n\n')
         flipped_prediction = tf.image.flip_left_right(
             network[4:,:,:,:])
         network = network[:4,:,:,:]
@@ -722,6 +723,8 @@ def main(mode,
                     try:
                         a = time.perf_counter()
                         print(sess.run(inputs).shape)
+                        print(sess.run(binarized_truth).shape)
+                        print(sess.run(prediction_network).shape)
                         img,_,(f1,auc_,iou) = sess.run(
                             [prediction_network,
                              (auc_op,f1score_op,m_iou_op,
