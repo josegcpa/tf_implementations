@@ -479,18 +479,19 @@ def main(mode,
 
     if 'train' in mode or 'test' in mode:
         if n_classes == 2:
-            prediction_summary = tf.expand_dims(tf.nn.softmax(network,axis = -1)[:,:,:,1],-1)
+            prediction_summary = tf.expand_dims(tf.nn.softmax(
+                prediction_network,axis = -1)[:,:,:,1],-1)
             prediction_binary_summary = tf.expand_dims(binarized_network,axis=-1)
             binarized_truth_summary = tf.expand_dims(binarized_truth,axis=-1)
             probs_summary = prediction_summary
 
         else:
-            prediction_summary = tf.nn.softmax(network,axis=-1)
+            prediction_summary = tf.nn.softmax(prediction_network,axis=-1)
             prediction_binary_summary = tf.expand_dims(binarized_network,axis=-1)
             binarized_truth_summary = tf.expand_dims(binarized_truth,axis=-1)
             max_bool = tf.equal(
-                tf.reduce_max(network,axis=-1,keepdims=True),
-                network
+                tf.reduce_max(prediction_network,axis=-1,keepdims=True),
+                prediction_network
             )
             probs_summary = tf.reduce_max(
                 tf.multiply(
