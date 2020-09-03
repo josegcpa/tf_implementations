@@ -721,6 +721,7 @@ def main(mode,
 
                     try:
                         a = time.perf_counter()
+                        print(sess.run(inputs).shape)
                         img,_,(f1,auc_,iou) = sess.run(
                             [prediction_network,
                              (auc_op,f1score_op,m_iou_op,
