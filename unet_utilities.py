@@ -598,7 +598,7 @@ def generate_images(image_path_list,truth_path,
 
         for i,image_path in enumerate(image_path_list):
             class_array = np.array([-1 for i in range(n_classes)])
-            if i % 5 == 0: print(i)
+            #if i % 5 == 0: print(i)
             image_name = image_path.split(os.sep)[-1]
             truth_image_path = truth_path + os.sep + image_name
             truth_img = image_to_array(truth_image_path)
@@ -653,7 +653,7 @@ def generate_images(image_path_list,truth_path,
         truth_list = []
 
         for i,image_path in enumerate(image_path_list):
-            if i % 5 == 0: print(i)
+            #if i % 5 == 0: print(i)
             image_name = image_path.split(os.sep)[-1]
             truth_image_path = truth_path + os.sep + image_name
             truth_img = image_to_array(truth_image_path)
@@ -809,7 +809,7 @@ def generate_images_affinity(
 
         for i,image_path in enumerate(image_path_list):
             class_array = np.array([-1 for i in range(n_classes)])
-            if i % 5 == 0: print(i)
+            #if i % 5 == 0: print(i)
             image_name = image_path.split(os.sep)[-1]
             truth_image_path = truth_path + os.sep + image_name
             truth_img = image_to_array(truth_image_path)
@@ -842,7 +842,7 @@ def generate_images_affinity(
 
         for i,image_path in enumerate(image_path_list):
             class_array = np.array([-1 for i in range(n_classes)])
-            if i % 5 == 0: print(i)
+            #if i % 5 == 0: print(i)
             image_name = image_path.split(os.sep)[-1]
             truth_image_path = truth_path + os.sep + image_name
             truth_img = image_to_array(truth_image_path)
@@ -938,7 +938,7 @@ def generate_images_propagation(
 
         for i,image_path in enumerate(image_path_list):
             class_array = np.array([-1 for i in range(n_classes)])
-            if i % 5 == 0: print(i)
+            #if i % 5 == 0: print(i)
             image_name = image_path.split(os.sep)[-1]
             truth_image_path = os.path.join(truth_path,image_name)
             propagation_image_path = os.path.join(propagation_path,image_name)
@@ -979,7 +979,7 @@ def generate_images_propagation(
 
         for i,image_path in enumerate(image_path_list):
             class_array = np.array([-1 for i in range(n_classes)])
-            if i % 5 == 0: print(i)
+            #if i % 5 == 0: print(i)
             image_name = image_path.split(os.sep)[-1]
             propagation_image_path = os.path.join(propagation_path,image_name)
             propa_img = image_to_array(propagation_image_path)
@@ -1048,8 +1048,7 @@ def classification_generator(image_path_list,classification_list,
             tmp_images.append(image)
             tmp_classifications.append(classification)
 
-            if len(tmp_images) % 5 == 0:
-                print(len(tmp_images))
+            #if len(tmp_images) % 5 == 0: print(len(tmp_images))
     image_list = tmp_images
     classification_list = tmp_classifications
 
