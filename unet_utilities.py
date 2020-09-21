@@ -239,7 +239,7 @@ def u_net(inputs,
 
     with slim.arg_scope(
         [slim.conv2d],
-        activation_fn=tf.nn.relu,
+        activation_fn=tf.nn.elu,
         padding=padding,
         weights_regularizer=weights_regularizer,
         #normalizer_fn=pixel_normalization
@@ -250,7 +250,6 @@ def u_net(inputs,
         ):
 
         with tf.variable_scope('U-net', None, [inputs]):
-
             with tf.variable_scope('Red_Operations',None,[inputs]):
                 with tf.variable_scope('Red_Block_1',None):
                     net,endpoints = red_block_wrapper(
@@ -374,7 +373,7 @@ def u_net(inputs,
                         net = sc_squeeze_and_excite(net,r=2)
 
                 with tf.variable_scope('Final',None,[net]):
-                    net = slim.conv2d(net, n_classes, [3, 3],
+                    net = slim.conv2d(net, n_classes, [1, 1],
                                       normalizer_fn=None,
                                       activation_fn=None,
                                       scope='conv2d_0_sigmoid')
